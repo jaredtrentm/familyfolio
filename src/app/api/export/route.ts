@@ -218,8 +218,9 @@ export async function GET(request: NextRequest) {
 
       // Generate ZIP
       const buffer = await zip.generateAsync({ type: 'uint8array' });
+      const blob = new Blob([buffer], { type: 'application/zip' });
 
-      return new NextResponse(buffer, {
+      return new NextResponse(blob, {
         headers: {
           'Content-Type': 'application/zip',
           'Content-Disposition': 'attachment; filename="portfolio-export.zip"',
