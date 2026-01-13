@@ -66,9 +66,11 @@ export function HoldingsTable({ holdings, locale }: HoldingsTableProps) {
                     <div className="font-medium text-gray-900 dark:text-white">
                       {holding.symbol}
                     </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      {holding.name}
-                    </div>
+                    {holding.name && holding.name !== holding.symbol && (
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {holding.name}
+                      </div>
+                    )}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">

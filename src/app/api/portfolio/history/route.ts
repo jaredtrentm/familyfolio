@@ -154,8 +154,8 @@ export async function GET(request: NextRequest) {
 
       history.push({
         date: dateLabel,
-        value: Math.round(totalValue * 100) / 100,
-        costBasis: Math.round(totalCostBasis * 100) / 100,
+        value: Math.abs(Math.round(totalValue * 100) / 100),
+        costBasis: Math.abs(Math.round(totalCostBasis * 100) / 100),
       });
     }
 

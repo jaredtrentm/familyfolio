@@ -56,17 +56,27 @@ export function DashboardClient({
       const response = await fetch('/api/stocks', { method: 'POST' });
       const data = await response.json();
 
-      if (data.stocks && Array.isArray(data.stocks)) {
+      console.log('[Dashboard] Stock API response:', data);
+
+      if (data.error) {
+        console.error('[Dashboard] API error:', data.error);
+      } else if (data.stocks && Array.isArray(data.stocks)) {
         const newPrices = new Map<string, StockData>();
         for (const stock of data.stocks) {
-          newPrices.set(stock.symbol, {
-            symbol: stock.symbol,
-            name: stock.name || stock.symbol,
+          // Store with uppercase symbol for consistent matching
+          const normalizedSymbol = stock.symbol.toUpperCase().trim();
+          newPrices.set(normalizedSymbol, {
+            symbol: normalizedSymbol,
+            name: stock.name || normalizedSymbol,
             currentPrice: stock.currentPrice || 0,
             sector: stock.sector,
           });
+          console.log(`[Dashboard] Loaded ${normalizedSymbol}: price=${stock.currentPrice}, sector=${stock.sector}`);
         }
         setStockPrices(newPrices);
+        console.log('[Dashboard] Updated stockPrices map with', newPrices.size, 'stocks');
+      } else {
+        console.warn('[Dashboard] No stocks in response:', data);
       }
 
       setLastRefresh(new Date());
@@ -87,7 +97,9 @@ export function DashboardClient({
   // Recalculate holdings with current prices
   const holdings = useMemo(() => {
     return initialHoldings.map((h) => {
-      const stock = stockPrices.get(h.symbol);
+      // Normalize symbol for matching
+      const normalizedSymbol = h.symbol.toUpperCase().trim();
+      const stock = stockPrices.get(normalizedSymbol);
 
       // Use fetched price if available and valid, otherwise keep original
       const currentPrice = (stock && stock.currentPrice > 0)
@@ -101,6 +113,7 @@ export function DashboardClient({
 
       return {
         ...h,
+        symbol: normalizedSymbol,
         name: stock?.name || h.name,
         quantity,
         currentPrice,
