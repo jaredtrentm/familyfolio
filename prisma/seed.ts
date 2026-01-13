@@ -1,14 +1,8 @@
 import { PrismaClient } from '@prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import bcrypt from 'bcryptjs';
 import 'dotenv/config';
-import path from 'path';
 
-// Initialize SQLite database with adapter for Prisma 7.x
-// The database is created at project root by prisma db push
-const dbPath = path.join(process.cwd(), 'dev.db');
-const adapter = new PrismaBetterSqlite3({ url: dbPath });
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient();
 
 async function main() {
   console.log('Seeding database...');
@@ -56,7 +50,6 @@ async function main() {
   console.log(`Created ${users.length} users`);
 
   // Create sample transactions (unclaimed - shared pool)
-  const now = new Date();
   const transactions = [
     // Tech stocks
     { date: daysAgo(90), type: 'BUY', symbol: 'AAPL', quantity: 50, price: 175.50, amount: 8775 },
