@@ -19,6 +19,55 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const symbols = searchParams.get('symbols')?.split(',').filter(Boolean) || [];
+    const debug = searchParams.get('debug') === 'true';
+
+    // Debug mode: test Yahoo Finance with a known symbol
+    if (debug) {
+      const testSymbol = symbols[0] || 'AAPL';
+      const debugInfo: Record<string, unknown> = {
+        testSymbol,
+        timestamp: new Date().toISOString(),
+      };
+
+      try {
+        console.log(`[Stocks API Debug] Testing Yahoo Finance with ${testSymbol}...`);
+        const quote = await yahooFinance.quote(testSymbol) as {
+          symbol?: string;
+          regularMarketPrice?: number;
+          shortName?: string;
+        } | null;
+        debugInfo.yahooFinanceWorking = true;
+        debugInfo.quote = quote ? {
+          symbol: quote.symbol,
+          price: quote.regularMarketPrice,
+          name: quote.shortName,
+        } : null;
+        console.log(`[Stocks API Debug] Yahoo Finance returned:`, debugInfo.quote);
+      } catch (yahooError) {
+        debugInfo.yahooFinanceWorking = false;
+        debugInfo.yahooError = yahooError instanceof Error ? yahooError.message : 'Unknown error';
+        console.error(`[Stocks API Debug] Yahoo Finance error:`, yahooError);
+      }
+
+      // Check what's in the cache
+      const cached = await prisma.stockCache.findMany({ take: 10 });
+      debugInfo.cacheEntries = cached.map(c => ({
+        symbol: c.symbol,
+        price: c.currentPrice,
+        sector: c.sector,
+        updatedAt: c.updatedAt,
+      }));
+
+      // Check user's transactions
+      const transactions = await prisma.transaction.findMany({
+        where: { claimedById: session.id },
+        select: { symbol: true },
+        distinct: ['symbol'],
+      });
+      debugInfo.userSymbols = transactions.map(t => t.symbol);
+
+      return NextResponse.json(debugInfo);
+    }
 
     if (symbols.length === 0) {
       return NextResponse.json({ stocks: [] });
@@ -30,7 +79,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[Stocks API] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch stock data' },
+      { error: 'Failed to fetch stock data', details: error instanceof Error ? error.message : 'Unknown' },
       { status: 500 }
     );
   }
@@ -246,111 +295,133 @@ async function getStockData(requestedSymbols: string[], forceRefresh = false) {
   console.log('[Stocks API] Fetching from Yahoo Finance for:', symbolsToFetch);
 
   for (const symbol of symbolsToFetch) {
+    const normalizedSymbol = symbol.toUpperCase().trim();
+
+    // Initialize stock data with defaults - will be updated if Yahoo Finance works
+    const stockData = {
+      symbol: normalizedSymbol,
+      name: normalizedSymbol,
+      currentPrice: 0,
+      dayChange: 0,
+      dayChangePercent: 0,
+      previousClose: 0,
+      marketCap: null as number | null,
+      sector: null as string | null,
+      industry: null as string | null,
+    };
+
+    // Try to fetch from Yahoo Finance
     try {
       console.log(`[Stocks API] Fetching quote for ${symbol}...`);
-      const quote = await yahooFinance.quote(symbol) as {
-        symbol?: string;
-        shortName?: string;
-        longName?: string;
-        regularMarketPrice?: number;
-        regularMarketChange?: number;
-        regularMarketChangePercent?: number;
-        regularMarketPreviousClose?: number;
-        marketCap?: number;
-      } | null;
+      const quote = await yahooFinance.quote(symbol);
 
-      console.log(`[Stocks API] Quote for ${symbol}:`, quote ? { price: quote.regularMarketPrice, name: quote.shortName } : 'null');
-
-      if (quote) {
-        // Always use uppercase symbol for consistency
-        const normalizedSymbol = symbol.toUpperCase().trim();
-        const stockData = {
-          symbol: normalizedSymbol,
-          name: quote.shortName || quote.longName || normalizedSymbol,
-          currentPrice: quote.regularMarketPrice || 0,
-          dayChange: quote.regularMarketChange || 0,
-          dayChangePercent: quote.regularMarketChangePercent || 0,
-          previousClose: quote.regularMarketPreviousClose || 0,
-          marketCap: quote.marketCap || null,
-          sector: null as string | null,
-          industry: null as string | null,
+      if (quote && typeof quote === 'object') {
+        const q = quote as {
+          symbol?: string;
+          shortName?: string;
+          longName?: string;
+          regularMarketPrice?: number;
+          regularMarketChange?: number;
+          regularMarketChangePercent?: number;
+          regularMarketPreviousClose?: number;
+          marketCap?: number;
         };
 
-        console.log(`[Stocks API] Got price for ${normalizedSymbol}: $${stockData.currentPrice}`);
+        stockData.name = q.shortName || q.longName || normalizedSymbol;
+        stockData.currentPrice = q.regularMarketPrice || 0;
+        stockData.dayChange = q.regularMarketChange || 0;
+        stockData.dayChangePercent = q.regularMarketChangePercent || 0;
+        stockData.previousClose = q.regularMarketPreviousClose || 0;
+        stockData.marketCap = q.marketCap || null;
 
-        // Try to get sector/industry info from quoteSummary
-        try {
-          const summary = await yahooFinance.quoteSummary(symbol, {
-            modules: ['assetProfile'],
-          });
-          // Type assertion for the summary response
-          const summaryData = summary as { assetProfile?: { sector?: string; industry?: string } } | null;
-          if (summaryData?.assetProfile) {
-            stockData.sector = summaryData.assetProfile.sector || null;
-            stockData.industry = summaryData.assetProfile.industry || null;
-          }
-        } catch (profileError) {
-          console.log(`Could not fetch profile for ${symbol}:`, profileError instanceof Error ? profileError.message : 'Unknown error');
-          // Profile not available for all stocks (e.g., ETFs, some foreign stocks)
-        }
-
-        // Use static mapping as fallback if sector is still null
-        if (!stockData.sector) {
-          const staticData = SECTOR_MAP[symbol] || SECTOR_MAP[symbol.replace(/\.[A-Z]+$/, '')];
-          if (staticData) {
-            stockData.sector = staticData.sector;
-            stockData.industry = staticData.industry;
-          }
-        }
-
-        // Use AI classification as final fallback
-        if (!stockData.sector) {
-          const aiClassification = await classifyStockWithAI(symbol, stockData.name);
-          if (aiClassification) {
-            stockData.sector = aiClassification.sector;
-            stockData.industry = aiClassification.industry;
-            console.log(`AI classified ${symbol} as ${aiClassification.sector} / ${aiClassification.industry}`);
-          }
-        }
-
-        // Upsert to cache with normalized symbol
-        try {
-          await prisma.stockCache.upsert({
-            where: { symbol: normalizedSymbol },
-            update: {
-              name: stockData.name,
-              currentPrice: stockData.currentPrice,
-              dayChange: stockData.dayChange,
-              dayChangePercent: stockData.dayChangePercent,
-              previousClose: stockData.previousClose,
-              marketCap: stockData.marketCap,
-              sector: stockData.sector,
-              industry: stockData.industry,
-            },
-            create: {
-              symbol: normalizedSymbol,
-              name: stockData.name,
-              currentPrice: stockData.currentPrice,
-              dayChange: stockData.dayChange,
-              dayChangePercent: stockData.dayChangePercent,
-              previousClose: stockData.previousClose,
-              marketCap: stockData.marketCap,
-              sector: stockData.sector,
-              industry: stockData.industry,
-            },
-          });
-          console.log(`[Stocks API] Cached ${normalizedSymbol}: price=$${stockData.currentPrice}, sector=${stockData.sector}`);
-        } catch (upsertError) {
-          console.error(`[Stocks API] Failed to cache ${normalizedSymbol}:`, upsertError);
-        }
-
-        results.push(stockData);
+        console.log(`[Stocks API] Yahoo Finance returned for ${normalizedSymbol}: price=$${stockData.currentPrice}, name=${stockData.name}`);
       } else {
-        console.warn(`[Stocks API] No quote data returned for ${symbol}`);
+        console.warn(`[Stocks API] Yahoo Finance returned empty for ${symbol}`);
       }
-    } catch (error) {
-      console.error(`[Stocks API] Failed to fetch ${symbol}:`, error instanceof Error ? error.message : 'Unknown error');
+    } catch (yahooError) {
+      console.error(`[Stocks API] Yahoo Finance failed for ${symbol}:`, yahooError instanceof Error ? yahooError.message : 'Unknown error');
+      // Continue with fallbacks below
     }
+
+    // Try to get sector/industry info from quoteSummary (only if we got a price)
+    if (stockData.currentPrice > 0) {
+      try {
+        const summary = await yahooFinance.quoteSummary(symbol, {
+          modules: ['assetProfile'],
+        });
+        const summaryData = summary as { assetProfile?: { sector?: string; industry?: string } } | null;
+        if (summaryData?.assetProfile) {
+          stockData.sector = summaryData.assetProfile.sector || null;
+          stockData.industry = summaryData.assetProfile.industry || null;
+          console.log(`[Stocks API] Got sector from Yahoo for ${normalizedSymbol}: ${stockData.sector}`);
+        }
+      } catch (profileError) {
+        console.log(`[Stocks API] Could not fetch profile for ${symbol}:`, profileError instanceof Error ? profileError.message : 'Unknown error');
+      }
+    }
+
+    // Use static mapping as fallback if sector is still null
+    if (!stockData.sector) {
+      const staticData = SECTOR_MAP[normalizedSymbol] || SECTOR_MAP[normalizedSymbol.replace(/\.[A-Z]+$/, '')];
+      if (staticData) {
+        stockData.sector = staticData.sector;
+        stockData.industry = staticData.industry;
+        console.log(`[Stocks API] Using static sector for ${normalizedSymbol}: ${stockData.sector}`);
+      }
+    }
+
+    // Use AI classification as final fallback (only if we have an API key)
+    if (!stockData.sector && process.env.ANTHROPIC_API_KEY) {
+      try {
+        const aiClassification = await classifyStockWithAI(normalizedSymbol, stockData.name);
+        if (aiClassification) {
+          stockData.sector = aiClassification.sector;
+          stockData.industry = aiClassification.industry;
+          console.log(`[Stocks API] AI classified ${normalizedSymbol} as ${aiClassification.sector} / ${aiClassification.industry}`);
+        }
+      } catch (aiError) {
+        console.error(`[Stocks API] AI classification failed for ${normalizedSymbol}:`, aiError instanceof Error ? aiError.message : 'Unknown error');
+      }
+    }
+
+    // If still no sector, set to Unknown
+    if (!stockData.sector) {
+      stockData.sector = 'Unknown';
+      console.log(`[Stocks API] No sector found for ${normalizedSymbol}, using Unknown`);
+    }
+
+    // Always upsert to cache (even with partial data)
+    try {
+      await prisma.stockCache.upsert({
+        where: { symbol: normalizedSymbol },
+        update: {
+          name: stockData.name,
+          currentPrice: stockData.currentPrice,
+          dayChange: stockData.dayChange,
+          dayChangePercent: stockData.dayChangePercent,
+          previousClose: stockData.previousClose,
+          marketCap: stockData.marketCap,
+          sector: stockData.sector,
+          industry: stockData.industry,
+        },
+        create: {
+          symbol: normalizedSymbol,
+          name: stockData.name,
+          currentPrice: stockData.currentPrice,
+          dayChange: stockData.dayChange,
+          dayChangePercent: stockData.dayChangePercent,
+          previousClose: stockData.previousClose,
+          marketCap: stockData.marketCap,
+          sector: stockData.sector,
+          industry: stockData.industry,
+        },
+      });
+      console.log(`[Stocks API] Cached ${normalizedSymbol}: price=$${stockData.currentPrice}, sector=${stockData.sector}`);
+    } catch (upsertError) {
+      console.error(`[Stocks API] Failed to cache ${normalizedSymbol}:`, upsertError);
+    }
+
+    results.push(stockData);
   }
 
   // Always return from cache to ensure consistent format
