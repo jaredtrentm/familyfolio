@@ -19,7 +19,10 @@ export async function generateMetadata({
 async function getUnclaimedTransactions() {
   const transactions = await prisma.transaction.findMany({
     where: { claimedById: null },
-    orderBy: { date: 'desc' },
+    orderBy: [
+      { isDuplicateFlag: 'desc' }, // Show duplicates first
+      { date: 'desc' },
+    ],
   });
 
   return transactions.map((tx) => ({

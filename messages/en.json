@@ -86,7 +86,11 @@
     "claimAll": "Claim All",
     "aiClaim": "AI-Assisted Claim",
     "aiClaimDescription": "Let AI help you claim transactions based on patterns",
-    "noUnclaimed": "No unclaimed transactions. Import data to get started."
+    "noUnclaimed": "No unclaimed transactions. Import data to get started.",
+    "likelyDuplicate": "Likely Duplicate",
+    "deleteDuplicate": "Delete Duplicate",
+    "deleteDuplicateConfirm": "Delete this duplicate transaction? This cannot be undone.",
+    "duplicateDeleted": "Duplicate deleted successfully"
   },
   "import": {
     "title": "Import Transactions",

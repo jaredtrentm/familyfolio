@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
-import { Check, Sparkles, CheckSquare, Square } from 'lucide-react';
+import { Check, Sparkles, CheckSquare, Square, Trash2 } from 'lucide-react';
 
 interface Transaction {
   id: string;
@@ -17,6 +17,9 @@ interface Transaction {
   amount: number;
   fees: number;
   currency: string;
+  isDuplicateFlag: boolean;
+  duplicateOfId: string | null;
+  duplicateScore: number | null;
 }
 
 interface UnclaimedClientProps {
@@ -33,6 +36,7 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const localeCode = locale === 'zh' ? 'zh-CN' : 'en-US';
 
@@ -95,6 +99,34 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
       console.error('AI claim error:', error);
     } finally {
       setIsAiLoading(false);
+    }
+  };
+
+  const handleDeleteDuplicate = async (e: React.MouseEvent, transactionId: string) => {
+    e.stopPropagation(); // Prevent row selection
+
+    if (!confirm(t('deleteDuplicateConfirm'))) {
+      return;
+    }
+
+    setDeletingId(transactionId);
+    try {
+      const response = await fetch(`/api/transactions/${transactionId}/delete-duplicate`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete duplicate');
+        return;
+      }
+
+      router.refresh();
+    } catch (error) {
+      console.error('Delete duplicate error:', error);
+      alert('Failed to delete duplicate');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -206,6 +238,9 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   {tTx('amount')}
                 </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <span className="sr-only">{t('likelyDuplicate')}</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -215,9 +250,10 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
                   onClick={() => toggleSelect(tx.id)}
                   className={cn(
                     'cursor-pointer transition-colors',
+                    tx.isDuplicateFlag && 'bg-red-50 dark:bg-red-900/10 border-l-4 border-red-500',
                     selected.has(tx.id)
                       ? 'bg-blue-50 dark:bg-blue-900/20'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                      : !tx.isDuplicateFlag && 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
                   )}
                 >
                   <td className="px-4 py-4">
@@ -262,6 +298,26 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-white">
                     {formatCurrency(tx.amount, tx.currency, localeCode)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    {tx.isDuplicateFlag && (
+                      <div className="flex items-center justify-center gap-2">
+                        <span
+                          className="text-lg animate-pulse"
+                          title={t('likelyDuplicate')}
+                        >
+                          🚩🚩
+                        </span>
+                        <button
+                          onClick={(e) => handleDeleteDuplicate(e, tx.id)}
+                          disabled={deletingId === tx.id}
+                          className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
+                          title={t('deleteDuplicate')}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

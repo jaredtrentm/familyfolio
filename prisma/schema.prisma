@@ -7,7 +7,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -56,6 +55,11 @@ model Transaction {
   amount       Float    // total value (quantity * price for trades)
   fees         Float    @default(0)
   currency     String   @default("USD")
+
+  // Duplicate detection
+  isDuplicateFlag Boolean  @default(false)
+  duplicateOfId   String?  // ID of the transaction this is a duplicate of
+  duplicateScore  Int?     // Match confidence score (0-100)
 
   // Metadata
   createdAt    DateTime @default(now())

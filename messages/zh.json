@@ -86,7 +86,11 @@
     "claimAll": "全部认领",
     "aiClaim": "AI辅助认领",
     "aiClaimDescription": "让AI根据交易模式帮助您认领",
-    "noUnclaimed": "没有待认领的交易，请先导入数据。"
+    "noUnclaimed": "没有待认领的交易，请先导入数据。",
+    "likelyDuplicate": "可能重复",
+    "deleteDuplicate": "删除重复项",
+    "deleteDuplicateConfirm": "删除此重复交易？此操作无法撤销。",
+    "duplicateDeleted": "重复项已成功删除"
   },
   "import": {
     "title": "导入交易",

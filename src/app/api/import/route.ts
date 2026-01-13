@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
 import * as XLSX from 'xlsx';
 import Anthropic from '@anthropic-ai/sdk';
+import { checkAndFlagDuplicates } from '@/lib/duplicate-detection';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -217,21 +218,45 @@ Return ONLY the JSON array, nothing else. If no transactions found, return [].`,
         }
       }
 
-      // Save transactions to database
+      // Save transactions to database and check for duplicates
       if (transactions.length > 0) {
-        await prisma.transaction.createMany({
-          data: transactions.map((tx) => ({
-            dataUploadId: upload.id,
-            date: new Date(tx.date),
-            type: tx.type,
+        let duplicateCount = 0;
+
+        for (const tx of transactions) {
+          const txDate = new Date(tx.date);
+
+          // Create the transaction
+          const created = await prisma.transaction.create({
+            data: {
+              dataUploadId: upload.id,
+              date: txDate,
+              type: tx.type,
+              symbol: tx.symbol,
+              description: tx.description || null,
+              quantity: tx.quantity,
+              price: tx.price,
+              amount: tx.amount,
+              fees: tx.fees || 0,
+            },
+          });
+
+          // Check for duplicates and flag if found
+          const result = await checkAndFlagDuplicates(created.id, {
+            date: txDate,
             symbol: tx.symbol,
-            description: tx.description || null,
+            type: tx.type,
             quantity: tx.quantity,
             price: tx.price,
-            amount: tx.amount,
-            fees: tx.fees || 0,
-          })),
-        });
+          });
+
+          if (result.isDuplicate) {
+            duplicateCount++;
+          }
+        }
+
+        if (duplicateCount > 0) {
+          console.log(`[Import API] Found ${duplicateCount} potential duplicates`);
+        }
       }
 
       // Update upload status
