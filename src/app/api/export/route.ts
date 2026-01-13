@@ -216,9 +216,8 @@ export async function GET(request: NextRequest) {
       ].join('\n');
       zip.file('transactions.csv', txCsv);
 
-      // Generate ZIP
-      const buffer = await zip.generateAsync({ type: 'uint8array' });
-      const blob = new Blob([buffer], { type: 'application/zip' });
+      // Generate ZIP as blob directly
+      const blob = await zip.generateAsync({ type: 'blob' });
 
       return new NextResponse(blob, {
         headers: {
