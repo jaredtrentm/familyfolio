@@ -80,13 +80,13 @@ export function HoldingsTable({ holdings, locale }: HoldingsTableProps) {
                   {formatNumber(holding.quantity, localeCode)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
-                  {formatCurrency(holding.costBasis / holding.quantity, 'USD', localeCode)}
+                  {formatCurrency(Math.abs(holding.costBasis / holding.quantity), 'USD', localeCode)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
-                  {formatCurrency(holding.currentPrice, 'USD', localeCode)}
+                  {formatCurrency(Math.abs(holding.currentPrice), 'USD', localeCode)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-white">
-                  {formatCurrency(holding.currentValue, 'USD', localeCode)}
+                  {formatCurrency(Math.abs(holding.currentValue), 'USD', localeCode)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right">
                   <div
