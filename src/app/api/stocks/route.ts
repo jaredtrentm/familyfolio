@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
 import yahooFinance from 'yahoo-finance2';
+import Anthropic from '@anthropic-ai/sdk';
 
 // Cache duration in minutes
 const CACHE_DURATION = 15;
@@ -74,6 +75,110 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Static sector mapping for common stocks as fallback
+const SECTOR_MAP: Record<string, { sector: string; industry: string }> = {
+  // Technology
+  AAPL: { sector: 'Technology', industry: 'Consumer Electronics' },
+  MSFT: { sector: 'Technology', industry: 'Software' },
+  GOOGL: { sector: 'Technology', industry: 'Internet Services' },
+  GOOG: { sector: 'Technology', industry: 'Internet Services' },
+  META: { sector: 'Technology', industry: 'Social Media' },
+  NVDA: { sector: 'Technology', industry: 'Semiconductors' },
+  AMD: { sector: 'Technology', industry: 'Semiconductors' },
+  INTC: { sector: 'Technology', industry: 'Semiconductors' },
+  CRM: { sector: 'Technology', industry: 'Software' },
+  ADBE: { sector: 'Technology', industry: 'Software' },
+  ORCL: { sector: 'Technology', industry: 'Software' },
+  CSCO: { sector: 'Technology', industry: 'Networking' },
+  AVGO: { sector: 'Technology', industry: 'Semiconductors' },
+  // Finance
+  JPM: { sector: 'Financial Services', industry: 'Banking' },
+  BAC: { sector: 'Financial Services', industry: 'Banking' },
+  WFC: { sector: 'Financial Services', industry: 'Banking' },
+  GS: { sector: 'Financial Services', industry: 'Investment Banking' },
+  MS: { sector: 'Financial Services', industry: 'Investment Banking' },
+  V: { sector: 'Financial Services', industry: 'Credit Services' },
+  MA: { sector: 'Financial Services', industry: 'Credit Services' },
+  BRK: { sector: 'Financial Services', industry: 'Insurance' },
+  // Healthcare
+  JNJ: { sector: 'Healthcare', industry: 'Pharmaceuticals' },
+  UNH: { sector: 'Healthcare', industry: 'Healthcare Plans' },
+  PFE: { sector: 'Healthcare', industry: 'Pharmaceuticals' },
+  ABBV: { sector: 'Healthcare', industry: 'Pharmaceuticals' },
+  MRK: { sector: 'Healthcare', industry: 'Pharmaceuticals' },
+  LLY: { sector: 'Healthcare', industry: 'Pharmaceuticals' },
+  // Consumer
+  AMZN: { sector: 'Consumer Cyclical', industry: 'E-Commerce' },
+  TSLA: { sector: 'Consumer Cyclical', industry: 'Auto Manufacturers' },
+  HD: { sector: 'Consumer Cyclical', industry: 'Home Improvement' },
+  NKE: { sector: 'Consumer Cyclical', industry: 'Footwear' },
+  SBUX: { sector: 'Consumer Cyclical', industry: 'Restaurants' },
+  MCD: { sector: 'Consumer Cyclical', industry: 'Restaurants' },
+  WMT: { sector: 'Consumer Defensive', industry: 'Retail' },
+  COST: { sector: 'Consumer Defensive', industry: 'Retail' },
+  PG: { sector: 'Consumer Defensive', industry: 'Household Products' },
+  KO: { sector: 'Consumer Defensive', industry: 'Beverages' },
+  PEP: { sector: 'Consumer Defensive', industry: 'Beverages' },
+  // Energy
+  XOM: { sector: 'Energy', industry: 'Oil & Gas' },
+  CVX: { sector: 'Energy', industry: 'Oil & Gas' },
+  // Communications
+  DIS: { sector: 'Communication Services', industry: 'Entertainment' },
+  NFLX: { sector: 'Communication Services', industry: 'Entertainment' },
+  CMCSA: { sector: 'Communication Services', industry: 'Telecom' },
+  VZ: { sector: 'Communication Services', industry: 'Telecom' },
+  T: { sector: 'Communication Services', industry: 'Telecom' },
+  // ETFs
+  SPY: { sector: 'ETF', industry: 'S&P 500 Index' },
+  QQQ: { sector: 'ETF', industry: 'Nasdaq 100 Index' },
+  VTI: { sector: 'ETF', industry: 'Total Stock Market' },
+  VOO: { sector: 'ETF', industry: 'S&P 500 Index' },
+  IWM: { sector: 'ETF', industry: 'Russell 2000 Index' },
+  VGT: { sector: 'ETF', industry: 'Technology Sector' },
+  XLF: { sector: 'ETF', industry: 'Financial Sector' },
+  XLE: { sector: 'ETF', industry: 'Energy Sector' },
+  VNQ: { sector: 'ETF', industry: 'Real Estate' },
+  BND: { sector: 'ETF', industry: 'Bonds' },
+  AGG: { sector: 'ETF', industry: 'Bonds' },
+};
+
+// AI-based sector classification for unknown stocks
+async function classifyStockWithAI(symbol: string, name: string): Promise<{ sector: string; industry: string } | null> {
+  try {
+    const anthropic = new Anthropic();
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 150,
+      messages: [
+        {
+          role: 'user',
+          content: `Classify the following stock/ETF into a sector and industry. Stock symbol: ${symbol}, Name: ${name || 'Unknown'}.
+
+Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
+{"sector": "Technology", "industry": "Software"}
+
+Common sectors: Technology, Financial Services, Healthcare, Consumer Cyclical, Consumer Defensive, Energy, Communication Services, Industrials, Real Estate, Utilities, Basic Materials, ETF
+
+If it's an ETF, use "ETF" as the sector and describe what it tracks as the industry.`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type === 'text') {
+      const parsed = JSON.parse(content.text.trim());
+      if (parsed.sector && parsed.industry) {
+        return parsed;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error(`AI classification failed for ${symbol}:`, error);
+    return null;
+  }
+}
+
 async function getStockData(symbols: string[], forceRefresh = false) {
   const now = new Date();
   const cacheThreshold = new Date(now.getTime() - CACHE_DURATION * 60 * 1000);
@@ -143,6 +248,25 @@ async function getStockData(symbols: string[], forceRefresh = false) {
         } catch (profileError) {
           console.log(`Could not fetch profile for ${symbol}:`, profileError instanceof Error ? profileError.message : 'Unknown error');
           // Profile not available for all stocks (e.g., ETFs, some foreign stocks)
+        }
+
+        // Use static mapping as fallback if sector is still null
+        if (!stockData.sector) {
+          const staticData = SECTOR_MAP[symbol] || SECTOR_MAP[symbol.replace(/\.[A-Z]+$/, '')];
+          if (staticData) {
+            stockData.sector = staticData.sector;
+            stockData.industry = staticData.industry;
+          }
+        }
+
+        // Use AI classification as final fallback
+        if (!stockData.sector) {
+          const aiClassification = await classifyStockWithAI(symbol, stockData.name);
+          if (aiClassification) {
+            stockData.sector = aiClassification.sector;
+            stockData.industry = aiClassification.industry;
+            console.log(`AI classified ${symbol} as ${aiClassification.sector} / ${aiClassification.industry}`);
+          }
         }
 
         // Upsert to cache

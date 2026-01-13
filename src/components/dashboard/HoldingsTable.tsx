@@ -47,7 +47,10 @@ export function HoldingsTable({ holdings, locale }: HoldingsTableProps) {
                 Shares
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Price
+                Avg Cost
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Current Price
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Value
@@ -75,6 +78,9 @@ export function HoldingsTable({ holdings, locale }: HoldingsTableProps) {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
                   {formatNumber(holding.quantity, localeCode)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
+                  {formatCurrency(holding.costBasis / holding.quantity, 'USD', localeCode)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
                   {formatCurrency(holding.currentPrice, 'USD', localeCode)}

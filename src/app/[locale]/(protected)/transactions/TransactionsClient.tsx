@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
-import { Search, X, Plus } from 'lucide-react';
+import { Search, X, Plus, Trash2, Undo2, MoreVertical } from 'lucide-react';
 
 interface Transaction {
   id: string;
@@ -32,6 +32,8 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showMenuId, setShowMenuId] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -123,6 +125,60 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
       alert('Failed to add transaction');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (transactionId: string) => {
+    if (!confirm(t('deleteConfirm'))) {
+      return;
+    }
+
+    setDeletingId(transactionId);
+    setShowMenuId(null);
+    try {
+      const response = await fetch(`/api/transactions/${transactionId}?action=delete`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete');
+        return;
+      }
+
+      router.refresh();
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Failed to delete transaction');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleUnclaim = async (transactionId: string) => {
+    if (!confirm(t('unclaimConfirm'))) {
+      return;
+    }
+
+    setDeletingId(transactionId);
+    setShowMenuId(null);
+    try {
+      const response = await fetch(`/api/transactions/${transactionId}?action=unclaim`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Failed to unclaim');
+        return;
+      }
+
+      router.refresh();
+    } catch (error) {
+      console.error('Unclaim error:', error);
+      alert('Failed to unclaim transaction');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -346,6 +402,9 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     {t('amount')}
                   </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <span className="sr-only">{t('actions')}</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -380,6 +439,33 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
                       getAmountColor(tx.type)
                     )}>
                       {formatAmount(tx)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center relative">
+                      <button
+                        onClick={() => setShowMenuId(showMenuId === tx.id ? null : tx.id)}
+                        disabled={deletingId === tx.id}
+                        className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                      {showMenuId === tx.id && (
+                        <div className="absolute right-4 mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+                          <button
+                            onClick={() => handleUnclaim(tx.id)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            <Undo2 className="w-4 h-4" />
+                            {t('sendToUnclaimed')}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(tx.id)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            {t('deletePermanently')}
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

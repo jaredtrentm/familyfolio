@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
-import { Check, Sparkles, CheckSquare, Square, Trash2, Search, X, MessageSquare } from 'lucide-react';
+import { Check, Sparkles, CheckSquare, Square, Trash2, Search, X, MessageSquare, Pencil } from 'lucide-react';
 
 interface Transaction {
   id: string;
@@ -39,6 +39,8 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingDateId, setEditingDateId] = useState<string | null>(null);
+  const [editingDateValue, setEditingDateValue] = useState('');
 
   // AI Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -181,6 +183,67 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
       alert('Failed to delete duplicate');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, transactionId: string) => {
+    e.stopPropagation();
+
+    if (!confirm(t('deleteConfirm'))) {
+      return;
+    }
+
+    setDeletingId(transactionId);
+    try {
+      const response = await fetch(`/api/transactions/${transactionId}?action=delete`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete transaction');
+        return;
+      }
+
+      router.refresh();
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Failed to delete transaction');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const startEditingDate = (e: React.MouseEvent, tx: Transaction) => {
+    e.stopPropagation();
+    setEditingDateId(tx.id);
+    setEditingDateValue(tx.date.split('T')[0]);
+  };
+
+  const handleDateChange = async (transactionId: string) => {
+    if (!editingDateValue) {
+      setEditingDateId(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/transactions/${transactionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: editingDateValue }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Failed to update date');
+        return;
+      }
+
+      setEditingDateId(null);
+      router.refresh();
+    } catch (error) {
+      console.error('Update date error:', error);
+      alert('Failed to update date');
     }
   };
 
@@ -368,7 +431,40 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {formatDate(tx.date)}
+                    {editingDateId === tx.id ? (
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="date"
+                          value={editingDateValue}
+                          onChange={(e) => setEditingDateValue(e.target.value)}
+                          className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleDateChange(tx.id)}
+                          className="p-1 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setEditingDateId(null)}
+                          className="p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 group">
+                        <span>{formatDate(tx.date)}</span>
+                        <button
+                          onClick={(e) => startEditingDate(e, tx)}
+                          className="p-1 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Edit date"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
@@ -397,24 +493,24 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
                     {formatCurrency(tx.amount, tx.currency, localeCode)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    {tx.isDuplicateFlag && (
-                      <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-2">
+                      {tx.isDuplicateFlag && (
                         <span
                           className="text-lg animate-pulse"
                           title={t('likelyDuplicate')}
                         >
                           🚩🚩
                         </span>
-                        <button
-                          onClick={(e) => handleDeleteDuplicate(e, tx.id)}
-                          disabled={deletingId === tx.id}
-                          className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
-                          title={t('deleteDuplicate')}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
+                      )}
+                      <button
+                        onClick={(e) => handleDelete(e, tx.id)}
+                        disabled={deletingId === tx.id}
+                        className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
+                        title={t('delete')}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

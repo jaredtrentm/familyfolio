@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   TrendingUp,
+  Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -33,6 +34,7 @@ export function Sidebar({ locale }: SidebarProps) {
     { href: `/${locale}/transactions`, label: t('transactions'), icon: Receipt },
     { href: `/${locale}/unclaimed`, label: t('unclaimed'), icon: Inbox },
     { href: `/${locale}/import`, label: t('import'), icon: Upload },
+    { href: `/${locale}/links`, label: t('links'), icon: Link2 },
     { href: `/${locale}/chat`, label: t('chat'), icon: MessageSquare },
     { href: `/${locale}/export`, label: t('export'), icon: Download },
   ];

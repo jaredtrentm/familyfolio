@@ -13,6 +13,7 @@ function parseDate(value: unknown): Date {
   if (value instanceof Date) return value;
 
   const str = String(value).trim();
+  const currentYear = new Date().getFullYear();
 
   // Check if it's an Excel serial number (a number between 1 and 100000)
   const num = Number(str);
@@ -20,6 +21,24 @@ function parseDate(value: unknown): Date {
     // Excel serial date: days since 1899-12-30
     const excelEpoch = new Date(1899, 11, 30);
     return new Date(excelEpoch.getTime() + num * 24 * 60 * 60 * 1000);
+  }
+
+  // Handle dates without year like "Jan 7" or "January 7" or "1/7"
+  const monthDayPatterns = [
+    /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})$/i,
+    /^(\d{1,2})\/(\d{1,2})$/,
+  ];
+
+  for (const pattern of monthDayPatterns) {
+    const match = str.match(pattern);
+    if (match) {
+      // Add current year and try parsing
+      const withYear = `${str}, ${currentYear}`;
+      const parsed = new Date(withYear);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
   }
 
   // Try parsing as ISO date or common formats
@@ -232,12 +251,14 @@ export async function POST(request: NextRequest) {
                     type: 'text',
                     text: `Extract all stock transactions from this brokerage statement image.
 Return a JSON array with each transaction having:
-- date (ISO format YYYY-MM-DD)
+- date (ISO format YYYY-MM-DD) - IMPORTANT: If the year is not visible in the image, use ${new Date().getFullYear()} as the year
 - type (BUY, SELL, or DIVIDEND only)
 - symbol (stock ticker, uppercase)
 - quantity (number of shares)
 - price (price per share)
 - amount (total value)
+
+Today's date is ${new Date().toISOString().split('T')[0]}. Use this year (${new Date().getFullYear()}) for any dates that don't show a year.
 
 Return ONLY the JSON array, nothing else. If no transactions found, return [].`,
                   },

@@ -42,6 +42,7 @@
     "transactions": "交易记录",
     "unclaimed": "待认领",
     "import": "导入",
+    "links": "链接",
     "chat": "AI助手",
     "export": "导出",
     "settings": "设置"
@@ -72,6 +73,12 @@
     "claim": "认领",
     "unclaim": "取消认领",
     "claimedBy": "认领者",
+    "actions": "操作",
+    "sendToUnclaimed": "退回待认领",
+    "deletePermanently": "永久删除",
+    "deleteConfirm": "永久删除此交易记录？此操作无法撤销。",
+    "unclaimConfirm": "将此交易退回待认领列表？",
+    "search": "搜索交易...",
     "types": {
       "BUY": "买入",
       "SELL": "卖出",
@@ -91,7 +98,9 @@
     "likelyDuplicate": "可能重复",
     "deleteDuplicate": "删除重复项",
     "deleteDuplicateConfirm": "删除此重复交易？此操作无法撤销。",
-    "duplicateDeleted": "重复项已成功删除"
+    "duplicateDeleted": "重复项已成功删除",
+    "delete": "删除",
+    "deleteConfirm": "永久删除此交易？此操作无法撤销。"
   },
   "import": {
     "title": "导入交易",
@@ -163,5 +172,25 @@
     "gain": "盈亏",
     "noUnrealized": "暂无持仓。购买股票后可追踪未实现盈亏。",
     "noRealized": "暂无已实现盈亏。卖出股票后可查看已实现盈亏。"
+  },
+  "links": {
+    "title": "快捷链接",
+    "subtitle": "保存您的金融账户和研究工具链接",
+    "addLink": "添加链接",
+    "name": "名称",
+    "url": "网址",
+    "account": "账户",
+    "category": "分类",
+    "optional": "可选",
+    "noAccount": "通用（无关联账户）",
+    "categoryAccount": "账户登录",
+    "categoryResearch": "研究工具",
+    "categoryNews": "新闻资讯",
+    "categoryOther": "其他",
+    "generalLinks": "通用链接",
+    "noLinks": "暂无保存的链接。添加链接以快速访问您的金融账户。",
+    "deleteConfirm": "删除此链接？",
+    "cancel": "取消",
+    "add": "添加"
   }
 }

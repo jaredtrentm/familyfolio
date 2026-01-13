@@ -42,6 +42,7 @@
     "transactions": "Transactions",
     "unclaimed": "Unclaimed",
     "import": "Import",
+    "links": "Links",
     "chat": "AI Chat",
     "export": "Export",
     "settings": "Settings"
@@ -72,6 +73,12 @@
     "claim": "Claim",
     "unclaim": "Unclaim",
     "claimedBy": "Claimed by",
+    "actions": "Actions",
+    "sendToUnclaimed": "Send to Unclaimed",
+    "deletePermanently": "Delete Permanently",
+    "deleteConfirm": "Delete this transaction permanently? This cannot be undone.",
+    "unclaimConfirm": "Send this transaction back to unclaimed?",
+    "search": "Search transactions...",
     "types": {
       "BUY": "Buy",
       "SELL": "Sell",
@@ -91,7 +98,9 @@
     "likelyDuplicate": "Likely Duplicate",
     "deleteDuplicate": "Delete Duplicate",
     "deleteDuplicateConfirm": "Delete this duplicate transaction? This cannot be undone.",
-    "duplicateDeleted": "Duplicate deleted successfully"
+    "duplicateDeleted": "Duplicate deleted successfully",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this transaction permanently? This cannot be undone."
   },
   "import": {
     "title": "Import Transactions",
@@ -143,6 +152,26 @@
     "changePin": "Change PIN",
     "changePassword": "Change Password",
     "deleteAccount": "Delete Account"
+  },
+  "links": {
+    "title": "Quick Links",
+    "subtitle": "Save links to your financial accounts and research tools",
+    "addLink": "Add Link",
+    "name": "Name",
+    "url": "URL",
+    "account": "Account",
+    "category": "Category",
+    "optional": "optional",
+    "noAccount": "General (no account)",
+    "categoryAccount": "Account Login",
+    "categoryResearch": "Research",
+    "categoryNews": "News",
+    "categoryOther": "Other",
+    "generalLinks": "General Links",
+    "noLinks": "No links saved yet. Add links to quickly access your financial accounts.",
+    "deleteConfirm": "Delete this link?",
+    "cancel": "Cancel",
+    "add": "Add"
   },
   "gains": {
     "title": "Gains & Losses",

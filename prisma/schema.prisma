@@ -25,6 +25,7 @@ model User {
   dataUploads  DataUpload[]
   chatMessages ChatMessage[]
   accounts     Account[]
+  links        Link[]
 }
 
 model Account {
@@ -128,4 +129,21 @@ model ChatMessage {
   user      User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
+}
+
+model Link {
+  id          String   @id @default(cuid())
+  userId      String
+  accountId   String?  // Optional: associate with specific account
+  name        String   // Display name (e.g., "Schwab Login", "Yahoo Finance")
+  url         String
+  category    String   @default("other") // account, research, news, other
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([accountId])
 }
