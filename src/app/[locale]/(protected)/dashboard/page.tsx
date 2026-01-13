@@ -148,12 +148,6 @@ export default async function DashboardPage({
 
       <DashboardClient
         holdings={data.holdings}
-        totalValue={data.totalValue}
-        totalGainLoss={data.totalGainLoss}
-        totalGainLossPercent={data.totalGainLossPercent}
-        totalDayChange={data.totalDayChange}
-        totalDayChangePercent={data.totalDayChangePercent}
-        sectorAllocation={data.sectorAllocation}
         locale={locale}
         noHoldingsMessage={t('noHoldings')}
       />

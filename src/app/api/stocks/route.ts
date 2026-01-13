@@ -179,28 +179,32 @@ If it's an ETF, use "ETF" as the sector and describe what it tracks as the indus
   }
 }
 
-async function getStockData(symbols: string[], forceRefresh = false) {
+async function getStockData(requestedSymbols: string[], forceRefresh = false) {
   const now = new Date();
   const cacheThreshold = new Date(now.getTime() - CACHE_DURATION * 60 * 1000);
+
+  // Keep track of original symbols for final query
+  const allSymbols = [...requestedSymbols];
+  let symbolsToFetch = [...requestedSymbols];
 
   // Check cache first (unless force refresh)
   if (!forceRefresh) {
     const cached = await prisma.stockCache.findMany({
       where: {
-        symbol: { in: symbols },
+        symbol: { in: allSymbols },
         updatedAt: { gte: cacheThreshold },
       },
     });
 
-    if (cached.length === symbols.length) {
+    if (cached.length === allSymbols.length) {
       return cached;
     }
 
     // Find which symbols need updating
     const cachedSymbols = new Set(cached.map((s) => s.symbol));
-    symbols = symbols.filter((s) => !cachedSymbols.has(s));
+    symbolsToFetch = allSymbols.filter((s) => !cachedSymbols.has(s));
 
-    if (symbols.length === 0) {
+    if (symbolsToFetch.length === 0) {
       return cached;
     }
   }
@@ -208,7 +212,7 @@ async function getStockData(symbols: string[], forceRefresh = false) {
   // Fetch from Yahoo Finance
   const results = [];
 
-  for (const symbol of symbols) {
+  for (const symbol of symbolsToFetch) {
     try {
       const quote = await yahooFinance.quote(symbol) as {
         symbol?: string;
@@ -302,13 +306,10 @@ async function getStockData(symbols: string[], forceRefresh = false) {
     }
   }
 
-  // If not force refresh, merge with cached results
-  if (!forceRefresh) {
-    const allCached = await prisma.stockCache.findMany({
-      where: { symbol: { in: [...symbols, ...results.map((r) => r.symbol)] } },
-    });
-    return allCached;
-  }
+  // Always return from cache to ensure consistent format
+  const allCached = await prisma.stockCache.findMany({
+    where: { symbol: { in: allSymbols } },
+  });
 
-  return results;
+  return allCached;
 }
