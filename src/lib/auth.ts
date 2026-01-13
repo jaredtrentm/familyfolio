@@ -6,6 +6,25 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'default-secret-change-in-production'
 );
 
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+
+// Parse duration string to seconds for cookie maxAge
+function parseExpirationToSeconds(exp: string): number {
+  const match = exp.match(/^(\d+)([dhms])$/);
+  if (!match) return 60 * 60 * 24 * 7; // default 7 days
+
+  const value = parseInt(match[1]);
+  const unit = match[2];
+
+  switch (unit) {
+    case 'd': return value * 60 * 60 * 24;
+    case 'h': return value * 60 * 60;
+    case 'm': return value * 60;
+    case 's': return value;
+    default: return 60 * 60 * 24 * 7;
+  }
+}
+
 export interface UserPayload {
   id: string;
   email: string;
@@ -25,7 +44,7 @@ export async function createToken(payload: UserPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime(JWT_EXPIRES_IN)
     .sign(JWT_SECRET);
 }
 
@@ -55,7 +74,7 @@ export async function setAuthCookie(token: string): Promise<void> {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: parseExpirationToSeconds(JWT_EXPIRES_IN),
     path: '/',
   });
 }
