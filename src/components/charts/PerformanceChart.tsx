@@ -66,8 +66,8 @@ export function PerformanceChart({ locale }: PerformanceChartProps) {
               tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
             />
             <Tooltip
-              formatter={(value: number) => [
-                formatCurrency(value, 'USD', localeCode),
+              formatter={(value) => [
+                formatCurrency(Number(value) || 0, 'USD', localeCode),
                 'Value',
               ]}
               contentStyle={{
