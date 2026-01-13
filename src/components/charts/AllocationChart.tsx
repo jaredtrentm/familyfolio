@@ -68,8 +68,8 @@ export function AllocationChart({ data, locale }: AllocationChartProps) {
               ))}
             </Pie>
             <Tooltip
-              formatter={(value: number) => [
-                formatCurrency(value, 'USD', localeCode),
+              formatter={(value) => [
+                formatCurrency(Number(value) || 0, 'USD', localeCode),
                 '',
               ]}
               contentStyle={{
