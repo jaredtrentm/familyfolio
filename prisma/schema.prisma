@@ -1,0 +1,99 @@
+// FamilyFolio - Prisma Schema
+// Family investment portfolio tracking with transaction claiming
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String   // bcrypt hashed
+  name         String
+  pin          String?  // optional 4-digit PIN for quick access
+  locale       String   @default("en") // en or zh
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  transactions Transaction[] // claimed transactions
+  dataUploads  DataUpload[]
+  chatMessages ChatMessage[]
+}
+
+model DataUpload {
+  id           String   @id @default(cuid())
+  userId       String
+  filename     String
+  fileType     String   // csv, image, pdf
+  status       String   @default("pending") // pending, processing, completed, failed
+  errorMessage String?
+  rawData      String?  // JSON string of parsed data
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user         User         @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+}
+
+model Transaction {
+  id           String   @id @default(cuid())
+  dataUploadId String?
+  claimedById  String?  // null = unclaimed (shared pool)
+
+  // Transaction details
+  date         DateTime
+  type         String   // BUY, SELL, DIVIDEND, TRANSFER_IN, TRANSFER_OUT
+  symbol       String
+  description  String?
+  quantity     Float
+  price        Float
+  amount       Float    // total value (quantity * price for trades)
+  fees         Float    @default(0)
+  currency     String   @default("USD")
+
+  // Metadata
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  dataUpload   DataUpload? @relation(fields: [dataUploadId], references: [id])
+  claimedBy    User?       @relation(fields: [claimedById], references: [id])
+
+  @@index([claimedById])
+  @@index([symbol])
+  @@index([date])
+}
+
+model StockCache {
+  id           String   @id @default(cuid())
+  symbol       String   @unique
+  name         String?
+  currentPrice Float?
+  dayChange    Float?
+  dayChangePercent Float?
+  previousClose Float?
+  marketCap    Float?
+  sector       String?
+  industry     String?
+  updatedAt    DateTime @updatedAt
+
+  @@index([symbol])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String   // user, assistant
+  content   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}

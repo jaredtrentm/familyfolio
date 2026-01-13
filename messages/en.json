@@ -1,0 +1,133 @@
+{
+  "common": {
+    "appName": "FamilyFolio",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit",
+    "search": "Search",
+    "filter": "Filter",
+    "all": "All",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No",
+    "error": "Error",
+    "success": "Success"
+  },
+  "auth": {
+    "login": "Log In",
+    "logout": "Log Out",
+    "register": "Register",
+    "email": "Email",
+    "password": "Password",
+    "name": "Name",
+    "pin": "PIN (4 digits)",
+    "pinOptional": "PIN (optional, for quick access)",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "loginWithPin": "Quick login with PIN",
+    "loginWithPassword": "Login with password",
+    "invalidCredentials": "Invalid email or password",
+    "invalidPin": "Invalid PIN"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "transactions": "Transactions",
+    "unclaimed": "Unclaimed",
+    "import": "Import",
+    "chat": "AI Chat",
+    "export": "Export",
+    "settings": "Settings"
+  },
+  "dashboard": {
+    "title": "Portfolio Dashboard",
+    "totalValue": "Total Value",
+    "dayChange": "Day Change",
+    "totalGain": "Total Gain/Loss",
+    "holdings": "Holdings",
+    "allocation": "Allocation",
+    "performance": "Performance",
+    "recentTransactions": "Recent Transactions",
+    "noHoldings": "No holdings yet. Claim some transactions to get started.",
+    "viewAll": "View All"
+  },
+  "transactions": {
+    "title": "My Transactions",
+    "date": "Date",
+    "type": "Type",
+    "symbol": "Symbol",
+    "quantity": "Quantity",
+    "price": "Price",
+    "amount": "Amount",
+    "fees": "Fees",
+    "description": "Description",
+    "noTransactions": "No transactions yet.",
+    "claim": "Claim",
+    "unclaim": "Unclaim",
+    "claimedBy": "Claimed by",
+    "types": {
+      "BUY": "Buy",
+      "SELL": "Sell",
+      "DIVIDEND": "Dividend",
+      "TRANSFER_IN": "Transfer In",
+      "TRANSFER_OUT": "Transfer Out"
+    }
+  },
+  "unclaimed": {
+    "title": "Unclaimed Transactions",
+    "subtitle": "Transactions waiting to be claimed by family members",
+    "claimSelected": "Claim Selected",
+    "claimAll": "Claim All",
+    "aiClaim": "AI-Assisted Claim",
+    "aiClaimDescription": "Let AI help you claim transactions based on patterns",
+    "noUnclaimed": "No unclaimed transactions. Import data to get started."
+  },
+  "import": {
+    "title": "Import Transactions",
+    "subtitle": "Upload CSV files or images of brokerage statements",
+    "dragDrop": "Drag and drop files here, or click to browse",
+    "supportedFormats": "Supported formats: CSV, PNG, JPG, PDF",
+    "processing": "Processing...",
+    "parseWithAI": "Parse with AI",
+    "uploadHistory": "Upload History",
+    "noUploads": "No uploads yet."
+  },
+  "chat": {
+    "title": "Portfolio AI Assistant",
+    "placeholder": "Ask about your portfolio...",
+    "send": "Send",
+    "suggestions": {
+      "performance": "How is my portfolio performing?",
+      "allocation": "What's my asset allocation?",
+      "recommendations": "Any recommendations for rebalancing?"
+    }
+  },
+  "export": {
+    "title": "Export Data",
+    "format": "Format",
+    "dateRange": "Date Range",
+    "includeOptions": "Include",
+    "exportPdf": "Export PDF",
+    "exportExcel": "Export Excel",
+    "exportZip": "Export All (ZIP)",
+    "options": {
+      "transactions": "Transactions",
+      "holdings": "Holdings",
+      "charts": "Charts",
+      "summary": "Summary"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "changePin": "Change PIN",
+    "changePassword": "Change Password",
+    "deleteAccount": "Delete Account"
+  }
+}

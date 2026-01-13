@@ -1,0 +1,270 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSession } from '@/lib/auth';
+import prisma from '@/lib/db';
+import * as XLSX from 'xlsx';
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+interface ParsedTransaction {
+  date: string;
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TRANSFER_IN' | 'TRANSFER_OUT';
+  symbol: string;
+  description?: string;
+  quantity: number;
+  price: number;
+  amount: number;
+  fees?: number;
+}
+
+async function parseCSV(content: string): Promise<ParsedTransaction[]> {
+  const workbook = XLSX.read(content, { type: 'string' });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const data = XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];
+
+  const transactions: ParsedTransaction[] = [];
+
+  for (const row of data) {
+    // Try to map common column names
+    const date = row['Date'] || row['date'] || row['Trade Date'] || row['Transaction Date'];
+    const type = row['Type'] || row['type'] || row['Action'] || row['Transaction Type'];
+    const symbol = row['Symbol'] || row['symbol'] || row['Ticker'] || row['Stock'];
+    const quantity = row['Quantity'] || row['quantity'] || row['Shares'] || row['Qty'];
+    const price = row['Price'] || row['price'] || row['Unit Price'];
+    const amount = row['Amount'] || row['amount'] || row['Total'] || row['Value'];
+    const fees = row['Fees'] || row['fees'] || row['Commission'] || 0;
+    const description = row['Description'] || row['description'] || '';
+
+    if (date && symbol && quantity) {
+      const typeStr = String(type || 'BUY').toUpperCase();
+      const mappedType = mapTransactionType(typeStr);
+
+      transactions.push({
+        date: String(date),
+        type: mappedType,
+        symbol: String(symbol).toUpperCase(),
+        description: String(description),
+        quantity: Number(quantity) || 0,
+        price: Number(price) || 0,
+        amount: Number(amount) || Number(quantity) * Number(price),
+        fees: Number(fees) || 0,
+      });
+    }
+  }
+
+  return transactions;
+}
+
+function mapTransactionType(type: string): ParsedTransaction['type'] {
+  const typeMap: Record<string, ParsedTransaction['type']> = {
+    BUY: 'BUY',
+    BOUGHT: 'BUY',
+    PURCHASE: 'BUY',
+    SELL: 'SELL',
+    SOLD: 'SELL',
+    SALE: 'SELL',
+    DIVIDEND: 'DIVIDEND',
+    DIV: 'DIVIDEND',
+    TRANSFER_IN: 'TRANSFER_IN',
+    TRANSFER: 'TRANSFER_IN',
+    DEPOSIT: 'TRANSFER_IN',
+    TRANSFER_OUT: 'TRANSFER_OUT',
+    WITHDRAWAL: 'TRANSFER_OUT',
+  };
+
+  return typeMap[type] || 'BUY';
+}
+
+async function parseWithAI(content: string, fileType: string): Promise<ParsedTransaction[]> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return [];
+  }
+
+  const prompt = `Parse the following ${fileType} data into stock transactions.
+Extract each transaction with these fields:
+- date (ISO format YYYY-MM-DD)
+- type (BUY, SELL, DIVIDEND, TRANSFER_IN, or TRANSFER_OUT)
+- symbol (stock ticker, uppercase)
+- description (optional)
+- quantity (number of shares)
+- price (price per share)
+- amount (total value)
+- fees (optional, default 0)
+
+Data to parse:
+${content.slice(0, 10000)}
+
+Return ONLY a valid JSON array of transactions, nothing else.
+Example: [{"date":"2024-01-15","type":"BUY","symbol":"AAPL","quantity":10,"price":185.50,"amount":1855.00}]`;
+
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+  } catch (error) {
+    console.error('AI parsing error:', error);
+  }
+
+  return [];
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+
+    if (!file) {
+      return NextResponse.json(
+        { error: 'No file provided' },
+        { status: 400 }
+      );
+    }
+
+    const filename = file.name;
+    const fileType = filename.split('.').pop()?.toLowerCase() || 'unknown';
+
+    // Create upload record
+    const upload = await prisma.dataUpload.create({
+      data: {
+        userId: session.id,
+        filename,
+        fileType,
+        status: 'processing',
+      },
+    });
+
+    try {
+      let transactions: ParsedTransaction[] = [];
+
+      if (fileType === 'csv') {
+        const content = await file.text();
+        transactions = await parseCSV(content);
+
+        // If CSV parsing didn't work well, try AI
+        if (transactions.length === 0) {
+          transactions = await parseWithAI(content, 'CSV');
+        }
+      } else if (['png', 'jpg', 'jpeg', 'pdf'].includes(fileType)) {
+        // For images/PDFs, use AI to extract data
+        const arrayBuffer = await file.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        const mimeType = fileType === 'pdf' ? 'application/pdf' : `image/${fileType}`;
+
+        if (process.env.ANTHROPIC_API_KEY) {
+          const message = await anthropic.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4096,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'image',
+                    source: {
+                      type: 'base64',
+                      media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+                      data: base64,
+                    },
+                  },
+                  {
+                    type: 'text',
+                    text: `Extract all stock transactions from this brokerage statement image.
+Return a JSON array with each transaction having:
+- date (ISO format YYYY-MM-DD)
+- type (BUY, SELL, DIVIDEND, TRANSFER_IN, or TRANSFER_OUT)
+- symbol (stock ticker, uppercase)
+- quantity (number of shares)
+- price (price per share)
+- amount (total value)
+
+Return ONLY the JSON array, nothing else. If no transactions found, return [].`,
+                  },
+                ],
+              },
+            ],
+          });
+
+          const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
+          const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+
+          if (jsonMatch) {
+            try {
+              transactions = JSON.parse(jsonMatch[0]);
+            } catch (parseErr) {
+              console.error('Failed to parse AI response:', parseErr);
+            }
+          }
+        }
+      }
+
+      // Save transactions to database
+      if (transactions.length > 0) {
+        await prisma.transaction.createMany({
+          data: transactions.map((tx) => ({
+            dataUploadId: upload.id,
+            date: new Date(tx.date),
+            type: tx.type,
+            symbol: tx.symbol,
+            description: tx.description || null,
+            quantity: tx.quantity,
+            price: tx.price,
+            amount: tx.amount,
+            fees: tx.fees || 0,
+          })),
+        });
+      }
+
+      // Update upload status
+      await prisma.dataUpload.update({
+        where: { id: upload.id },
+        data: {
+          status: 'completed',
+          rawData: JSON.stringify(transactions),
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        uploadId: upload.id,
+        transactionCount: transactions.length,
+      });
+    } catch (parseError) {
+      // Update upload with error
+      await prisma.dataUpload.update({
+        where: { id: upload.id },
+        data: {
+          status: 'failed',
+          errorMessage: parseError instanceof Error ? parseError.message : 'Parsing failed',
+        },
+      });
+
+      throw parseError;
+    }
+  } catch (error) {
+    console.error('[Import API] Error:', error);
+    return NextResponse.json(
+      { error: 'Failed to import file' },
+      { status: 500 }
+    );
+  }
+}
