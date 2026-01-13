@@ -1,15 +1,13 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 
 interface PortfolioSummaryProps {
   totalValue: number;
   totalGainLoss: number;
   totalGainLossPercent: number;
-  totalDayChange: number;
-  totalDayChangePercent: number;
   locale: string;
 }
 
@@ -17,8 +15,6 @@ export function PortfolioSummary({
   totalValue,
   totalGainLoss,
   totalGainLossPercent,
-  totalDayChange,
-  totalDayChangePercent,
   locale,
 }: PortfolioSummaryProps) {
   const t = useTranslations('dashboard');
@@ -31,14 +27,6 @@ export function PortfolioSummary({
       color: 'blue',
     },
     {
-      title: t('dayChange'),
-      value: formatCurrency(Math.abs(totalDayChange), 'USD', locale === 'zh' ? 'zh-CN' : 'en-US'),
-      change: totalDayChangePercent,
-      icon: Activity,
-      color: totalDayChange >= 0 ? 'green' : 'red',
-      isPositive: totalDayChange >= 0,
-    },
-    {
       title: t('totalGain'),
       value: formatCurrency(Math.abs(totalGainLoss), 'USD', locale === 'zh' ? 'zh-CN' : 'en-US'),
       change: totalGainLossPercent,
@@ -49,7 +37,7 @@ export function PortfolioSummary({
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {cards.map((card, index) => {
         const Icon = card.icon;
         const colorClasses = {

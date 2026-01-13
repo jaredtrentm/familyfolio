@@ -13,8 +13,6 @@ interface Holding {
   currentValue: number;
   gainLoss: number;
   gainLossPercent: number;
-  dayChange: number;
-  dayChangePercent: number;
   sector: string;
 }
 
@@ -56,9 +54,6 @@ export function HoldingsTable({ holdings, locale }: HoldingsTableProps) {
                 Value
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Day Change
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Total Gain
               </th>
             </tr>
@@ -91,35 +86,23 @@ export function HoldingsTable({ holdings, locale }: HoldingsTableProps) {
                 <td className="px-6 py-4 whitespace-nowrap text-right">
                   <div
                     className={cn(
-                      'flex items-center justify-end gap-1 text-sm',
-                      holding.dayChange >= 0
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
-                    )}
-                  >
-                    {holding.dayChange >= 0 ? (
-                      <TrendingUp className="w-4 h-4" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4" />
-                    )}
-                    <span>{holding.dayChangePercent.toFixed(2)}%</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right">
-                  <div
-                    className={cn(
                       'text-sm font-medium',
                       holding.gainLoss >= 0
                         ? 'text-green-600 dark:text-green-400'
                         : 'text-red-600 dark:text-red-400'
                     )}
                   >
-                    <div>
+                    <div className="flex items-center justify-end gap-1">
+                      {holding.gainLoss >= 0 ? (
+                        <TrendingUp className="w-4 h-4" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4" />
+                      )}
                       {holding.gainLoss >= 0 ? '+' : ''}
                       {formatCurrency(holding.gainLoss, 'USD', localeCode)}
                     </div>
                     <div className="text-xs opacity-75">
-                      ({holding.gainLossPercent.toFixed(2)}%)
+                      ({holding.gainLossPercent >= 0 ? '+' : ''}{holding.gainLossPercent.toFixed(2)}%)
                     </div>
                   </div>
                 </td>

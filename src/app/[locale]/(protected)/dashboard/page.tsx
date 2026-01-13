@@ -75,8 +75,6 @@ async function getDashboardData(userId: string) {
     const currentValue = h.quantity * currentPrice;
     const gainLoss = currentValue - h.costBasis;
     const gainLossPercent = h.costBasis > 0 ? (gainLoss / h.costBasis) * 100 : 0;
-    const dayChange = stock?.dayChange || 0;
-    const dayChangePercent = stock?.dayChangePercent || 0;
 
     return {
       symbol: h.symbol,
@@ -87,8 +85,6 @@ async function getDashboardData(userId: string) {
       currentValue,
       gainLoss,
       gainLossPercent,
-      dayChange: dayChange * h.quantity,
-      dayChangePercent,
       sector: stock?.sector || 'Unknown',
     };
   });
@@ -100,7 +96,6 @@ async function getDashboardData(userId: string) {
   const totalValue = holdings.reduce((sum, h) => sum + h.currentValue, 0);
   const totalCostBasis = holdings.reduce((sum, h) => sum + h.costBasis, 0);
   const totalGainLoss = totalValue - totalCostBasis;
-  const totalDayChange = holdings.reduce((sum, h) => sum + h.dayChange, 0);
 
   // Calculate allocation by sector
   const sectorAllocation = holdings.reduce(
@@ -118,8 +113,6 @@ async function getDashboardData(userId: string) {
     totalCostBasis,
     totalGainLoss,
     totalGainLossPercent: totalCostBasis > 0 ? (totalGainLoss / totalCostBasis) * 100 : 0,
-    totalDayChange,
-    totalDayChangePercent: totalValue > 0 ? (totalDayChange / totalValue) * 100 : 0,
     sectorAllocation,
   };
 }

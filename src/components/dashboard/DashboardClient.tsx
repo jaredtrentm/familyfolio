@@ -17,8 +17,6 @@ interface Holding {
   currentValue: number;
   gainLoss: number;
   gainLossPercent: number;
-  dayChange: number;
-  dayChangePercent: number;
   sector: string;
 }
 
@@ -26,8 +24,6 @@ interface StockData {
   symbol: string;
   name: string;
   currentPrice: number;
-  dayChange: number;
-  dayChangePercent: number;
   sector: string | null;
 }
 
@@ -67,8 +63,6 @@ export function DashboardClient({
             symbol: stock.symbol,
             name: stock.name || stock.symbol,
             currentPrice: stock.currentPrice || 0,
-            dayChange: stock.dayChange || 0,
-            dayChangePercent: stock.dayChangePercent || 0,
             sector: stock.sector,
           });
         }
@@ -104,8 +98,6 @@ export function DashboardClient({
       const costBasis = Math.abs(h.costBasis);
       const gainLoss = currentValue - costBasis;
       const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
-      const dayChange = stock ? (stock.dayChange || 0) * quantity : h.dayChange;
-      const dayChangePercent = stock?.dayChangePercent || h.dayChangePercent;
 
       return {
         ...h,
@@ -116,27 +108,22 @@ export function DashboardClient({
         costBasis,
         gainLoss,
         gainLossPercent,
-        dayChange,
-        dayChangePercent,
         sector: stock?.sector || h.sector,
       };
     }).sort((a, b) => b.currentValue - a.currentValue);
   }, [initialHoldings, stockPrices]);
 
   // Calculate totals from holdings - always use current holdings data
-  const { totalValue, totalGainLoss, totalGainLossPercent, totalDayChange, totalDayChangePercent } = useMemo(() => {
+  const { totalValue, totalGainLoss, totalGainLossPercent } = useMemo(() => {
     const holdingsValue = holdings.reduce((sum, h) => sum + Math.abs(h.currentValue), 0);
     const totalCostBasis = holdings.reduce((sum, h) => sum + Math.abs(h.costBasis), 0);
     const gainLoss = holdingsValue - totalCostBasis;
-    const dayChange = holdings.reduce((sum, h) => sum + h.dayChange, 0);
     const total = holdingsValue + totalCash;
 
     return {
       totalValue: Math.abs(total),
       totalGainLoss: gainLoss,
       totalGainLossPercent: totalCostBasis > 0 ? (gainLoss / totalCostBasis) * 100 : 0,
-      totalDayChange: dayChange,
-      totalDayChangePercent: holdingsValue > 0 ? (dayChange / holdingsValue) * 100 : 0,
     };
   }, [holdings, totalCash]);
 
@@ -159,8 +146,6 @@ export function DashboardClient({
         totalValue={totalValue}
         totalGainLoss={totalGainLoss}
         totalGainLossPercent={totalGainLossPercent}
-        totalDayChange={totalDayChange}
-        totalDayChangePercent={totalDayChangePercent}
         locale={locale}
       />
 

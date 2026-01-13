@@ -20,10 +20,22 @@ export function formatCurrency(
 }
 
 export function formatNumber(value: number, locale: string = 'en-US'): string {
+  // For shares, show up to 8 decimal places but only as many as needed
+  const decimalPlaces = getSignificantDecimals(value, 8);
   return new Intl.NumberFormat(locale, {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: decimalPlaces,
   }).format(value);
+}
+
+// Helper to determine how many decimal places are significant (up to max)
+function getSignificantDecimals(value: number, max: number = 8): number {
+  if (Number.isInteger(value)) return 0;
+  const str = value.toString();
+  const decimalIndex = str.indexOf('.');
+  if (decimalIndex === -1) return 0;
+  const decimals = str.slice(decimalIndex + 1).replace(/0+$/, '').length;
+  return Math.min(decimals, max);
 }
 
 export function formatPercent(value: number, locale: string = 'en-US'): string {
