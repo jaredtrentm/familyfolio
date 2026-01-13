@@ -24,11 +24,30 @@ model User {
   transactions Transaction[] // claimed transactions
   dataUploads  DataUpload[]
   chatMessages ChatMessage[]
+  accounts     Account[]
+}
+
+model Account {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String   // e.g., "Schwab", "Robinhood", "Fidelity"
+  cashBalance  Float    @default(0) // Cash sitting in the account
+  isShared     Boolean  @default(false) // Shared family account like Schwab
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+  dataUploads  DataUpload[]
+
+  @@index([userId])
 }
 
 model DataUpload {
   id           String   @id @default(cuid())
   userId       String
+  accountId    String?  // Which account this upload is from
   filename     String
   fileType     String   // csv, image, pdf
   status       String   @default("pending") // pending, processing, completed, failed
@@ -38,17 +57,22 @@ model DataUpload {
 
   // Relations
   user         User         @relation(fields: [userId], references: [id])
+  account      Account?     @relation(fields: [accountId], references: [id])
   transactions Transaction[]
+
+  @@index([userId])
+  @@index([accountId])
 }
 
 model Transaction {
   id           String   @id @default(cuid())
   dataUploadId String?
   claimedById  String?  // null = unclaimed (shared pool)
+  accountId    String?  // Which account this transaction is from
 
   // Transaction details
   date         DateTime
-  type         String   // BUY, SELL, DIVIDEND, TRANSFER_IN, TRANSFER_OUT
+  type         String   // BUY, SELL, DIVIDEND
   symbol       String
   description  String?
   quantity     Float
@@ -69,10 +93,12 @@ model Transaction {
   // Relations
   dataUpload   DataUpload? @relation(fields: [dataUploadId], references: [id])
   claimedBy    User?       @relation(fields: [claimedById], references: [id])
+  account      Account?    @relation(fields: [accountId], references: [id])
 
   @@index([claimedById])
   @@index([symbol])
   @@index([date])
+  @@index([accountId])
 }
 
 model StockCache {

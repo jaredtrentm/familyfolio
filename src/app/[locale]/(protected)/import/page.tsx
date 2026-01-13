@@ -20,13 +20,40 @@ async function getUploadHistory(userId: string) {
   const uploads = await prisma.dataUpload.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
-    take: 10,
+    take: 20,
+    include: {
+      account: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
   });
 
   return uploads.map((upload) => ({
-    ...upload,
+    id: upload.id,
+    filename: upload.filename,
+    fileType: upload.fileType,
+    status: upload.status,
+    errorMessage: upload.errorMessage,
     createdAt: upload.createdAt.toISOString(),
+    accountId: upload.accountId,
+    accountName: upload.account?.name || null,
   }));
+}
+
+async function getAccounts(userId: string) {
+  const accounts = await prisma.account.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  return accounts;
 }
 
 export default async function ImportPage({
@@ -42,7 +69,16 @@ export default async function ImportPage({
     return null;
   }
 
-  const uploadHistory = await getUploadHistory(session.id);
+  const [uploadHistory, accounts] = await Promise.all([
+    getUploadHistory(session.id),
+    getAccounts(session.id),
+  ]);
 
-  return <ImportClient uploadHistory={uploadHistory} locale={locale} />;
+  return (
+    <ImportClient
+      uploadHistory={uploadHistory}
+      accounts={accounts}
+      locale={locale}
+    />
+  );
 }

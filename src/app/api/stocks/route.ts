@@ -129,15 +129,20 @@ async function getStockData(symbols: string[], forceRefresh = false) {
           industry: null as string | null,
         };
 
-        // Try to get additional info
+        // Try to get sector/industry info from quoteSummary
         try {
-          const profile = await yahooFinance.quoteSummary(symbol, {
+          const summary = await yahooFinance.quoteSummary(symbol, {
             modules: ['assetProfile'],
-          }) as { assetProfile?: { sector?: string; industry?: string } };
-          stockData.sector = profile.assetProfile?.sector || null;
-          stockData.industry = profile.assetProfile?.industry || null;
-        } catch {
-          // Profile not available for all stocks
+          });
+          // Type assertion for the summary response
+          const summaryData = summary as { assetProfile?: { sector?: string; industry?: string } } | null;
+          if (summaryData?.assetProfile) {
+            stockData.sector = summaryData.assetProfile.sector || null;
+            stockData.industry = summaryData.assetProfile.industry || null;
+          }
+        } catch (profileError) {
+          console.log(`Could not fetch profile for ${symbol}:`, profileError instanceof Error ? profileError.message : 'Unknown error');
+          // Profile not available for all stocks (e.g., ETFs, some foreign stocks)
         }
 
         // Upsert to cache

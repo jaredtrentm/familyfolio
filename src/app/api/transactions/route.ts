@@ -23,10 +23,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate type
-    const validTypes = ['BUY', 'SELL', 'DIVIDEND', 'TRANSFER_IN', 'TRANSFER_OUT'];
+    const validTypes = ['BUY', 'SELL', 'DIVIDEND'];
     if (!validTypes.includes(type.toUpperCase())) {
       return NextResponse.json(
-        { error: 'Invalid transaction type' },
+        { error: 'Invalid transaction type. Must be BUY, SELL, or DIVIDEND.' },
         { status: 400 }
       );
     }

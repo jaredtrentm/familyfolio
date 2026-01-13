@@ -57,23 +57,32 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
     return matchesSearch && matchesType;
   });
 
-  const types = ['BUY', 'SELL', 'DIVIDEND', 'TRANSFER_IN', 'TRANSFER_OUT'];
+  const types = ['BUY', 'SELL', 'DIVIDEND'];
 
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'BUY':
-        return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+        return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'; // Red for money going out
       case 'SELL':
-        return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+        return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'; // Green for money coming in
       case 'DIVIDEND':
         return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'TRANSFER_IN':
-        return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
-      case 'TRANSFER_OUT':
-        return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
       default:
         return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400';
     }
+  };
+
+  // Format amount - BUY shows negative (money out), SELL/DIVIDEND shows positive (money in)
+  const formatAmount = (tx: Transaction) => {
+    const amount = tx.type === 'BUY' ? -Math.abs(tx.amount) : Math.abs(tx.amount);
+    const formatted = formatCurrency(Math.abs(tx.amount), tx.currency, localeCode);
+    return tx.type === 'BUY' ? `-${formatted}` : `+${formatted}`;
+  };
+
+  const getAmountColor = (type: string) => {
+    return type === 'BUY'
+      ? 'text-red-600 dark:text-red-400'
+      : 'text-green-600 dark:text-green-400';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -366,8 +375,11 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
                       {formatCurrency(tx.price, tx.currency, localeCode)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-white">
-                      {formatCurrency(tx.amount, tx.currency, localeCode)}
+                    <td className={cn(
+                      'px-6 py-4 whitespace-nowrap text-right text-sm font-medium',
+                      getAmountColor(tx.type)
+                    )}>
+                      {formatAmount(tx)}
                     </td>
                   </tr>
                 ))}

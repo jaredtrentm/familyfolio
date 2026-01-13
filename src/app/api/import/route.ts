@@ -38,7 +38,7 @@ const anthropic = new Anthropic({
 
 interface ParsedTransaction {
   date: string;
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TRANSFER_IN' | 'TRANSFER_OUT';
+  type: 'BUY' | 'SELL' | 'DIVIDEND';
   symbol: string;
   description?: string;
   quantity: number;
@@ -96,14 +96,21 @@ function mapTransactionType(type: string): ParsedTransaction['type'] {
     SALE: 'SELL',
     DIVIDEND: 'DIVIDEND',
     DIV: 'DIVIDEND',
-    TRANSFER_IN: 'TRANSFER_IN',
-    TRANSFER: 'TRANSFER_IN',
-    DEPOSIT: 'TRANSFER_IN',
-    TRANSFER_OUT: 'TRANSFER_OUT',
-    WITHDRAWAL: 'TRANSFER_OUT',
   };
 
   return typeMap[type] || 'BUY';
+}
+
+// Map file extension to correct MIME type for Claude API
+function getImageMimeType(fileType: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' | null {
+  const mimeMap: Record<string, 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+  };
+  return mimeMap[fileType] || null;
 }
 
 async function parseWithAI(content: string, fileType: string): Promise<ParsedTransaction[]> {
@@ -114,7 +121,7 @@ async function parseWithAI(content: string, fileType: string): Promise<ParsedTra
   const prompt = `Parse the following ${fileType} data into stock transactions.
 Extract each transaction with these fields:
 - date (ISO format YYYY-MM-DD)
-- type (BUY, SELL, DIVIDEND, TRANSFER_IN, or TRANSFER_OUT)
+- type (BUY, SELL, or DIVIDEND only)
 - symbol (stock ticker, uppercase)
 - description (optional)
 - quantity (number of shares)
@@ -160,6 +167,8 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
+    const accountId = formData.get('accountId') as string | null;
+    const claimImmediately = formData.get('claimImmediately') === 'true';
 
     if (!file) {
       return NextResponse.json(
@@ -175,6 +184,7 @@ export async function POST(request: NextRequest) {
     const upload = await prisma.dataUpload.create({
       data: {
         userId: session.id,
+        accountId: accountId || null,
         filename,
         fileType,
         status: 'processing',
@@ -192,11 +202,15 @@ export async function POST(request: NextRequest) {
         if (transactions.length === 0) {
           transactions = await parseWithAI(content, 'CSV');
         }
-      } else if (['png', 'jpg', 'jpeg', 'pdf'].includes(fileType)) {
-        // For images/PDFs, use AI to extract data
+      } else if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(fileType)) {
+        // For images, use AI to extract data
         const arrayBuffer = await file.arrayBuffer();
         const base64 = Buffer.from(arrayBuffer).toString('base64');
-        const mimeType = fileType === 'pdf' ? 'application/pdf' : `image/${fileType}`;
+        const mimeType = getImageMimeType(fileType);
+
+        if (!mimeType) {
+          throw new Error(`Unsupported image format: ${fileType}. Supported formats: jpg, jpeg, png, gif, webp`);
+        }
 
         if (process.env.ANTHROPIC_API_KEY) {
           const message = await anthropic.messages.create({
@@ -210,7 +224,7 @@ export async function POST(request: NextRequest) {
                     type: 'image',
                     source: {
                       type: 'base64',
-                      media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+                      media_type: mimeType,
                       data: base64,
                     },
                   },
@@ -219,7 +233,7 @@ export async function POST(request: NextRequest) {
                     text: `Extract all stock transactions from this brokerage statement image.
 Return a JSON array with each transaction having:
 - date (ISO format YYYY-MM-DD)
-- type (BUY, SELL, DIVIDEND, TRANSFER_IN, or TRANSFER_OUT)
+- type (BUY, SELL, or DIVIDEND only)
 - symbol (stock ticker, uppercase)
 - quantity (number of shares)
 - price (price per share)
@@ -243,6 +257,10 @@ Return ONLY the JSON array, nothing else. If no transactions found, return [].`,
             }
           }
         }
+      } else if (fileType === 'pdf') {
+        // PDFs are not directly supported by Claude Vision API
+        // Would need to convert to images first
+        throw new Error('PDF files are not yet supported. Please convert to images or CSV.');
       }
 
       // Save transactions to database and check for duplicates
@@ -256,6 +274,8 @@ Return ONLY the JSON array, nothing else. If no transactions found, return [].`,
           const created = await prisma.transaction.create({
             data: {
               dataUploadId: upload.id,
+              accountId: accountId || null,
+              claimedById: claimImmediately ? session.id : null,
               date: txDate,
               type: tx.type,
               symbol: tx.symbol,
@@ -267,17 +287,19 @@ Return ONLY the JSON array, nothing else. If no transactions found, return [].`,
             },
           });
 
-          // Check for duplicates and flag if found
-          const result = await checkAndFlagDuplicates(created.id, {
-            date: txDate,
-            symbol: tx.symbol,
-            type: tx.type,
-            quantity: tx.quantity,
-            price: tx.price,
-          });
+          // Check for duplicates if not claimed immediately
+          if (!claimImmediately) {
+            const result = await checkAndFlagDuplicates(created.id, {
+              date: txDate,
+              symbol: tx.symbol,
+              type: tx.type,
+              quantity: tx.quantity,
+              price: tx.price,
+            });
 
-          if (result.isDuplicate) {
-            duplicateCount++;
+            if (result.isDuplicate) {
+              duplicateCount++;
+            }
           }
         }
 
@@ -299,6 +321,7 @@ Return ONLY the JSON array, nothing else. If no transactions found, return [].`,
         success: true,
         uploadId: upload.id,
         transactionCount: transactions.length,
+        claimedImmediately: claimImmediately,
       });
     } catch (parseError) {
       // Update upload with error
@@ -315,7 +338,7 @@ Return ONLY the JSON array, nothing else. If no transactions found, return [].`,
   } catch (error) {
     console.error('[Import API] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to import file' },
+      { error: error instanceof Error ? error.message : 'Failed to import file' },
       { status: 500 }
     );
   }
