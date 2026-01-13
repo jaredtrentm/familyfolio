@@ -5,6 +5,33 @@ import * as XLSX from 'xlsx';
 import Anthropic from '@anthropic-ai/sdk';
 import { checkAndFlagDuplicates } from '@/lib/duplicate-detection';
 
+// Parse date from various formats including Excel serial numbers
+function parseDate(value: unknown): Date {
+  if (!value) return new Date();
+
+  // If it's already a Date
+  if (value instanceof Date) return value;
+
+  const str = String(value).trim();
+
+  // Check if it's an Excel serial number (a number between 1 and 100000)
+  const num = Number(str);
+  if (!isNaN(num) && num > 0 && num < 100000) {
+    // Excel serial date: days since 1899-12-30
+    const excelEpoch = new Date(1899, 11, 30);
+    return new Date(excelEpoch.getTime() + num * 24 * 60 * 60 * 1000);
+  }
+
+  // Try parsing as ISO date or common formats
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1900 && parsed.getFullYear() < 2100) {
+    return parsed;
+  }
+
+  // Default to today if parsing fails
+  return new Date();
+}
+
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
@@ -223,7 +250,7 @@ Return ONLY the JSON array, nothing else. If no transactions found, return [].`,
         let duplicateCount = 0;
 
         for (const tx of transactions) {
-          const txDate = new Date(tx.date);
+          const txDate = parseDate(tx.date);
 
           // Create the transaction
           const created = await prisma.transaction.create({
