@@ -24,24 +24,28 @@ async function getDashboardData(userId: string) {
   });
 
   // Calculate holdings by aggregating transactions
+  // Normalize symbols to uppercase for consistent matching
   const holdingsMap = new Map<
     string,
     { symbol: string; quantity: number; costBasis: number }
   >();
 
   for (const tx of transactions) {
-    const existing = holdingsMap.get(tx.symbol) || {
-      symbol: tx.symbol,
+    const normalizedSymbol = tx.symbol.toUpperCase().trim();
+    const existing = holdingsMap.get(normalizedSymbol) || {
+      symbol: normalizedSymbol,
       quantity: 0,
       costBasis: 0,
     };
 
     switch (tx.type) {
       case 'BUY':
+      case 'TRANSFER_IN':
         existing.quantity += tx.quantity;
         existing.costBasis += tx.amount + tx.fees;
         break;
       case 'SELL':
+      case 'TRANSFER_OUT':
         if (existing.quantity > 0) {
           const sellRatio = Math.min(tx.quantity / existing.quantity, 1);
           existing.quantity -= tx.quantity;
@@ -54,19 +58,21 @@ async function getDashboardData(userId: string) {
     }
 
     if (existing.quantity > 0.0001) {
-      holdingsMap.set(tx.symbol, existing);
+      holdingsMap.set(normalizedSymbol, existing);
     } else {
-      holdingsMap.delete(tx.symbol);
+      holdingsMap.delete(normalizedSymbol);
     }
   }
 
   // Get current prices from cache
+  // Symbols are already normalized to uppercase
   const symbols = Array.from(holdingsMap.keys());
   const stockCache = await prisma.stockCache.findMany({
     where: { symbol: { in: symbols } },
   });
 
-  const priceMap = new Map(stockCache.map((s) => [s.symbol, s]));
+  // Normalize cache keys to uppercase for consistent matching
+  const priceMap = new Map(stockCache.map((s) => [s.symbol.toUpperCase().trim(), s]));
 
   // Calculate holdings with current values
   const holdings = Array.from(holdingsMap.values()).map((h) => {

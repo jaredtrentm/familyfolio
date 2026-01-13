@@ -73,11 +73,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Get current stock prices for calculating current value
-    const symbols = [...new Set(transactions.map((tx) => tx.symbol))];
+    // Normalize symbols to uppercase for consistent matching
+    const symbols = [...new Set(transactions.map((tx) => tx.symbol.toUpperCase().trim()))];
     const stockCache = await prisma.stockCache.findMany({
       where: { symbol: { in: symbols } },
     });
-    const priceMap = new Map(stockCache.map((s) => [s.symbol, s.currentPrice || 0]));
+    // Normalize cache keys for consistent matching
+    const priceMap = new Map(stockCache.map((s) => [s.symbol.toUpperCase().trim(), s.currentPrice || 0]));
 
     // Calculate portfolio value at different points in time
     const firstTxDate = new Date(Math.min(...transactions.map((tx) => tx.date.getTime())));
@@ -99,7 +101,9 @@ export async function GET(request: NextRequest) {
       for (const tx of transactions) {
         if (tx.date > pointDate) break;
 
-        const existing = holdingsMap.get(tx.symbol) || { quantity: 0, costBasis: 0 };
+        // Normalize symbol to uppercase for consistent matching
+        const normalizedSymbol = tx.symbol.toUpperCase().trim();
+        const existing = holdingsMap.get(normalizedSymbol) || { quantity: 0, costBasis: 0 };
 
         switch (tx.type) {
           case 'BUY':
@@ -118,9 +122,9 @@ export async function GET(request: NextRequest) {
         }
 
         if (existing.quantity > 0.0001) {
-          holdingsMap.set(tx.symbol, existing);
+          holdingsMap.set(normalizedSymbol, existing);
         } else {
-          holdingsMap.delete(tx.symbol);
+          holdingsMap.delete(normalizedSymbol);
         }
       }
 

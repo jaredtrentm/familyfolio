@@ -190,9 +190,34 @@ async function getStockData(requestedSymbols: string[], forceRefresh = false) {
   const now = new Date();
   const cacheThreshold = new Date(now.getTime() - CACHE_DURATION * 60 * 1000);
 
-  // Keep track of original symbols for final query
-  const allSymbols = [...requestedSymbols];
-  let symbolsToFetch = [...requestedSymbols];
+  // Normalize all symbols to uppercase
+  const allSymbols = requestedSymbols.map(s => s.toUpperCase().trim());
+  let symbolsToFetch = [...allSymbols];
+
+  // First, normalize any existing cache entries that might have wrong casing
+  // This ensures case-insensitive matching by standardizing all to uppercase
+  try {
+    const existingEntries = await prisma.stockCache.findMany({
+      where: {
+        symbol: {
+          in: allSymbols,
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    // Update any entries that have wrong casing
+    for (const entry of existingEntries) {
+      const upperSymbol = entry.symbol.toUpperCase().trim();
+      if (entry.symbol !== upperSymbol) {
+        console.log(`[Stocks API] Normalizing symbol casing: ${entry.symbol} -> ${upperSymbol}`);
+        // Delete the old entry and we'll recreate with correct casing
+        await prisma.stockCache.delete({ where: { id: entry.id } });
+      }
+    }
+  } catch (normalizeError) {
+    console.log('[Stocks API] Could not normalize existing entries:', normalizeError instanceof Error ? normalizeError.message : 'Unknown error');
+  }
 
   // Check cache first (unless force refresh)
   if (!forceRefresh) {
@@ -208,7 +233,7 @@ async function getStockData(requestedSymbols: string[], forceRefresh = false) {
     }
 
     // Find which symbols need updating
-    const cachedSymbols = new Set(cached.map((s) => s.symbol));
+    const cachedSymbols = new Set(cached.map((s) => s.symbol.toUpperCase()));
     symbolsToFetch = allSymbols.filter((s) => !cachedSymbols.has(s));
 
     if (symbolsToFetch.length === 0) {
@@ -237,9 +262,11 @@ async function getStockData(requestedSymbols: string[], forceRefresh = false) {
       console.log(`[Stocks API] Quote for ${symbol}:`, quote ? { price: quote.regularMarketPrice, name: quote.shortName } : 'null');
 
       if (quote) {
+        // Always use uppercase symbol for consistency
+        const normalizedSymbol = symbol.toUpperCase().trim();
         const stockData = {
-          symbol: quote.symbol || symbol,
-          name: quote.shortName || quote.longName || symbol,
+          symbol: normalizedSymbol,
+          name: quote.shortName || quote.longName || normalizedSymbol,
           currentPrice: quote.regularMarketPrice || 0,
           dayChange: quote.regularMarketChange || 0,
           dayChangePercent: quote.regularMarketChangePercent || 0,
@@ -248,6 +275,8 @@ async function getStockData(requestedSymbols: string[], forceRefresh = false) {
           sector: null as string | null,
           industry: null as string | null,
         };
+
+        console.log(`[Stocks API] Got price for ${normalizedSymbol}: $${stockData.currentPrice}`);
 
         // Try to get sector/industry info from quoteSummary
         try {
@@ -284,36 +313,43 @@ async function getStockData(requestedSymbols: string[], forceRefresh = false) {
           }
         }
 
-        // Upsert to cache
-        await prisma.stockCache.upsert({
-          where: { symbol },
-          update: {
-            name: stockData.name,
-            currentPrice: stockData.currentPrice,
-            dayChange: stockData.dayChange,
-            dayChangePercent: stockData.dayChangePercent,
-            previousClose: stockData.previousClose,
-            marketCap: stockData.marketCap,
-            sector: stockData.sector,
-            industry: stockData.industry,
-          },
-          create: {
-            symbol,
-            name: stockData.name,
-            currentPrice: stockData.currentPrice,
-            dayChange: stockData.dayChange,
-            dayChangePercent: stockData.dayChangePercent,
-            previousClose: stockData.previousClose,
-            marketCap: stockData.marketCap,
-            sector: stockData.sector,
-            industry: stockData.industry,
-          },
-        });
+        // Upsert to cache with normalized symbol
+        try {
+          await prisma.stockCache.upsert({
+            where: { symbol: normalizedSymbol },
+            update: {
+              name: stockData.name,
+              currentPrice: stockData.currentPrice,
+              dayChange: stockData.dayChange,
+              dayChangePercent: stockData.dayChangePercent,
+              previousClose: stockData.previousClose,
+              marketCap: stockData.marketCap,
+              sector: stockData.sector,
+              industry: stockData.industry,
+            },
+            create: {
+              symbol: normalizedSymbol,
+              name: stockData.name,
+              currentPrice: stockData.currentPrice,
+              dayChange: stockData.dayChange,
+              dayChangePercent: stockData.dayChangePercent,
+              previousClose: stockData.previousClose,
+              marketCap: stockData.marketCap,
+              sector: stockData.sector,
+              industry: stockData.industry,
+            },
+          });
+          console.log(`[Stocks API] Cached ${normalizedSymbol}: price=$${stockData.currentPrice}, sector=${stockData.sector}`);
+        } catch (upsertError) {
+          console.error(`[Stocks API] Failed to cache ${normalizedSymbol}:`, upsertError);
+        }
 
         results.push(stockData);
+      } else {
+        console.warn(`[Stocks API] No quote data returned for ${symbol}`);
       }
     } catch (error) {
-      console.error(`Failed to fetch ${symbol}:`, error);
+      console.error(`[Stocks API] Failed to fetch ${symbol}:`, error instanceof Error ? error.message : 'Unknown error');
     }
   }
 
