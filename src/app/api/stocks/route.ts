@@ -105,11 +105,20 @@ async function getStockData(symbols: string[], forceRefresh = false) {
 
   for (const symbol of symbols) {
     try {
-      const quote = await yahooFinance.quote(symbol);
+      const quote = await yahooFinance.quote(symbol) as {
+        symbol?: string;
+        shortName?: string;
+        longName?: string;
+        regularMarketPrice?: number;
+        regularMarketChange?: number;
+        regularMarketChangePercent?: number;
+        regularMarketPreviousClose?: number;
+        marketCap?: number;
+      } | null;
 
       if (quote) {
         const stockData = {
-          symbol: quote.symbol,
+          symbol: quote.symbol || symbol,
           name: quote.shortName || quote.longName || symbol,
           currentPrice: quote.regularMarketPrice || 0,
           dayChange: quote.regularMarketChange || 0,
