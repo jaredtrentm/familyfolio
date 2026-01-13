@@ -133,7 +133,7 @@ async function getStockData(symbols: string[], forceRefresh = false) {
         try {
           const profile = await yahooFinance.quoteSummary(symbol, {
             modules: ['assetProfile'],
-          });
+          }) as { assetProfile?: { sector?: string; industry?: string } };
           stockData.sector = profile.assetProfile?.sector || null;
           stockData.industry = profile.assetProfile?.industry || null;
         } catch {
