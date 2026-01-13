@@ -54,13 +54,20 @@ export async function POST(request: NextRequest) {
       distinct: ['symbol'],
     });
 
-    const symbols = transactions.map((tx) => tx.symbol);
+    // Normalize symbols (uppercase, trim whitespace)
+    const symbols = transactions
+      .map((tx) => tx.symbol.toUpperCase().trim())
+      .filter((s) => s.length > 0);
+
+    console.log('[Stocks API] Fetching data for symbols:', symbols);
 
     if (symbols.length === 0) {
-      return NextResponse.json({ updated: 0 });
+      console.log('[Stocks API] No symbols found for user');
+      return NextResponse.json({ updated: 0, stocks: [] });
     }
 
     const stocks = await getStockData(symbols, true);
+    console.log('[Stocks API] Fetched stocks:', stocks.map(s => ({ symbol: s.symbol, price: s.currentPrice, sector: s.sector })));
 
     return NextResponse.json({
       updated: stocks.length,
@@ -211,9 +218,11 @@ async function getStockData(requestedSymbols: string[], forceRefresh = false) {
 
   // Fetch from Yahoo Finance
   const results = [];
+  console.log('[Stocks API] Fetching from Yahoo Finance for:', symbolsToFetch);
 
   for (const symbol of symbolsToFetch) {
     try {
+      console.log(`[Stocks API] Fetching quote for ${symbol}...`);
       const quote = await yahooFinance.quote(symbol) as {
         symbol?: string;
         shortName?: string;
@@ -224,6 +233,8 @@ async function getStockData(requestedSymbols: string[], forceRefresh = false) {
         regularMarketPreviousClose?: number;
         marketCap?: number;
       } | null;
+
+      console.log(`[Stocks API] Quote for ${symbol}:`, quote ? { price: quote.regularMarketPrice, name: quote.shortName } : 'null');
 
       if (quote) {
         const stockData = {
