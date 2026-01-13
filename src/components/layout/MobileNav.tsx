@@ -9,6 +9,7 @@ import {
   Inbox,
   Upload,
   Menu,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -26,6 +27,7 @@ export function MobileNav({ locale }: MobileNavProps) {
 
   const bottomNavItems = [
     { href: `/${locale}/dashboard`, label: t('dashboard'), icon: LayoutDashboard },
+    { href: `/${locale}/gains`, label: t('gains'), icon: TrendingUp },
     { href: `/${locale}/transactions`, label: t('transactions'), icon: Receipt },
     { href: `/${locale}/unclaimed`, label: t('unclaimed'), icon: Inbox },
     { href: `/${locale}/import`, label: t('import'), icon: Upload },

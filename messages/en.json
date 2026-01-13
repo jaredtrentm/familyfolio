@@ -38,6 +38,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "gains": "Gains",
     "transactions": "Transactions",
     "unclaimed": "Unclaimed",
     "import": "Import",
@@ -125,7 +126,16 @@
       "holdings": "Holdings",
       "charts": "Charts",
       "summary": "Summary"
-    }
+    },
+    "annualReports": "Annual Reports",
+    "annualReportsDescription": "Comprehensive year-end portfolio reports with AI-generated insights and analysis",
+    "annualReport": "Annual Report",
+    "withAiSummary": "With AI Summary",
+    "annualReportDesc": "Full year summary with realized gains, dividends, and AI analysis",
+    "annualReportDescYtd": "Year-to-date performance with current holdings analysis",
+    "yearToDate": "YTD",
+    "standardExports": "Standard Exports",
+    "download": "Download"
   },
   "settings": {
     "title": "Settings",
@@ -133,5 +143,25 @@
     "changePin": "Change PIN",
     "changePassword": "Change Password",
     "deleteAccount": "Delete Account"
+  },
+  "gains": {
+    "title": "Gains & Losses",
+    "subtitle": "Track your realized and unrealized investment gains",
+    "unrealized": "Unrealized",
+    "realized": "Realized",
+    "totalGain": "Total Gain/Loss",
+    "currentValue": "Current Value",
+    "totalProceeds": "Total Proceeds",
+    "costBasis": "Cost Basis",
+    "return": "Return",
+    "symbol": "Symbol",
+    "shares": "Shares",
+    "price": "Price",
+    "value": "Value",
+    "date": "Date",
+    "proceeds": "Proceeds",
+    "gain": "Gain/Loss",
+    "noUnrealized": "No current holdings. Buy some stocks to track unrealized gains.",
+    "noRealized": "No realized gains yet. Sell some positions to see realized gains."
   }
 }

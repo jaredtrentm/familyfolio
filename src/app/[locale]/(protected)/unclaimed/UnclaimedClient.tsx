@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
-import { Check, Sparkles, CheckSquare, Square, Trash2 } from 'lucide-react';
+import { Check, Sparkles, CheckSquare, Square, Trash2, Search, X, MessageSquare } from 'lucide-react';
 
 interface Transaction {
   id: string;
@@ -34,9 +34,15 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
   const router = useRouter();
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // AI Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMessage, setSearchMessage] = useState<string | null>(null);
 
   const localeCode = locale === 'zh' ? 'zh-CN' : 'en-US';
 
@@ -72,6 +78,8 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
       }
 
       setSelected(new Set());
+      setHighlighted(new Set());
+      setSearchMessage(null);
       router.refresh();
     } catch (error) {
       console.error('Claim error:', error);
@@ -80,8 +88,9 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
     }
   };
 
-  const handleAiClaim = async () => {
+  const handleAiSuggest = async () => {
     setIsAiLoading(true);
+    setSearchMessage(null);
     try {
       const response = await fetch('/api/ai/suggest-claims', {
         method: 'POST',
@@ -95,15 +104,60 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
 
       const { suggestedIds } = await response.json();
       setSelected(new Set(suggestedIds));
+      setHighlighted(new Set());
+      if (suggestedIds.length > 0) {
+        setSearchMessage(`AI found ${suggestedIds.length} transactions that likely belong to you based on your history.`);
+      } else {
+        setSearchMessage('AI could not find patterns to suggest. Try claiming some transactions first to establish patterns.');
+      }
     } catch (error) {
-      console.error('AI claim error:', error);
+      console.error('AI suggest error:', error);
+      setSearchMessage('Failed to get AI suggestions. Please try again.');
     } finally {
       setIsAiLoading(false);
     }
   };
 
+  const handleAiSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setIsSearching(true);
+    setSearchMessage(null);
+    try {
+      const response = await fetch('/api/ai/search-transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: searchQuery,
+          transactionIds: transactions.map((tx) => tx.id),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Search failed');
+      }
+
+      const { matchingIds, message } = await response.json();
+      setHighlighted(new Set(matchingIds));
+      setSelected(new Set(matchingIds));
+      setSearchMessage(message);
+    } catch (error) {
+      console.error('AI search error:', error);
+      setSearchMessage('Search failed. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchMessage(null);
+    setHighlighted(new Set());
+  };
+
   const handleDeleteDuplicate = async (e: React.MouseEvent, transactionId: string) => {
-    e.stopPropagation(); // Prevent row selection
+    e.stopPropagation();
 
     if (!confirm(t('deleteDuplicateConfirm'))) {
       return;
@@ -175,6 +229,52 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
         </p>
       </div>
 
+      {/* AI Search */}
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-4 border border-purple-200 dark:border-purple-800">
+        <form onSubmit={handleAiSearch} className="flex gap-2">
+          <div className="relative flex-1">
+            <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder='Ask AI: "Show me Apple purchases from last summer" or "Find all dividend transactions"'
+              className="w-full pl-10 pr-10 py-2.5 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              disabled={isSearching}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={isSearching || !searchQuery.trim()}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 transition-colors disabled:opacity-50"
+          >
+            {isSearching ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Search className="w-5 h-5" />
+            )}
+            Search
+          </button>
+        </form>
+
+        {/* AI Response Message */}
+        {searchMessage && (
+          <div className="mt-3 flex items-start gap-2 text-sm">
+            <Sparkles className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
+            <p className="text-gray-700 dark:text-gray-300">{searchMessage}</p>
+          </div>
+        )}
+      </div>
+
       {/* Action buttons */}
       <div className="flex flex-wrap gap-3">
         <button
@@ -190,7 +290,7 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
         </button>
 
         <button
-          onClick={handleAiClaim}
+          onClick={handleAiSuggest}
           disabled={isAiLoading || transactions.length === 0}
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 transition-colors disabled:opacity-50"
         >
@@ -247,9 +347,10 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
                   className={cn(
                     'cursor-pointer transition-colors',
                     tx.isDuplicateFlag && 'bg-red-50 dark:bg-red-900/10 border-l-4 border-red-500',
+                    highlighted.has(tx.id) && !selected.has(tx.id) && 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500',
                     selected.has(tx.id)
                       ? 'bg-blue-50 dark:bg-blue-900/20'
-                      : !tx.isDuplicateFlag && 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                      : !tx.isDuplicateFlag && !highlighted.has(tx.id) && 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
                   )}
                 >
                   <td className="px-4 py-4">

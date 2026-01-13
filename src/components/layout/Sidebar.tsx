@@ -12,6 +12,7 @@ import {
   Download,
   Settings,
   LogOut,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +29,7 @@ export function Sidebar({ locale }: SidebarProps) {
 
   const navItems = [
     { href: `/${locale}/dashboard`, label: t('dashboard'), icon: LayoutDashboard },
+    { href: `/${locale}/gains`, label: t('gains'), icon: TrendingUp },
     { href: `/${locale}/transactions`, label: t('transactions'), icon: Receipt },
     { href: `/${locale}/unclaimed`, label: t('unclaimed'), icon: Inbox },
     { href: `/${locale}/import`, label: t('import'), icon: Upload },

@@ -38,6 +38,7 @@
   },
   "nav": {
     "dashboard": "仪表盘",
+    "gains": "盈亏",
     "transactions": "交易记录",
     "unclaimed": "待认领",
     "import": "导入",
@@ -125,7 +126,16 @@
       "holdings": "持仓",
       "charts": "图表",
       "summary": "摘要"
-    }
+    },
+    "annualReports": "年度报告",
+    "annualReportsDescription": "包含AI智能分析的年度投资组合报告",
+    "annualReport": "年度报告",
+    "withAiSummary": "含AI分析",
+    "annualReportDesc": "全年总结，包含已实现收益、股息和AI分析",
+    "annualReportDescYtd": "年初至今的投资表现和当前持仓分析",
+    "yearToDate": "年初至今",
+    "standardExports": "标准导出",
+    "download": "下载"
   },
   "settings": {
     "title": "设置",
@@ -133,5 +143,25 @@
     "changePin": "修改PIN码",
     "changePassword": "修改密码",
     "deleteAccount": "删除账户"
+  },
+  "gains": {
+    "title": "盈亏分析",
+    "subtitle": "追踪您的已实现和未实现投资盈亏",
+    "unrealized": "未实现",
+    "realized": "已实现",
+    "totalGain": "总盈亏",
+    "currentValue": "当前市值",
+    "totalProceeds": "总收入",
+    "costBasis": "成本基础",
+    "return": "回报率",
+    "symbol": "代码",
+    "shares": "股数",
+    "price": "价格",
+    "value": "市值",
+    "date": "日期",
+    "proceeds": "收入",
+    "gain": "盈亏",
+    "noUnrealized": "暂无持仓。购买股票后可追踪未实现盈亏。",
+    "noRealized": "暂无已实现盈亏。卖出股票后可查看已实现盈亏。"
   }
 }
