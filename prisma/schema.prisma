@@ -113,9 +113,30 @@ model StockCache {
   marketCap    Float?
   sector       String?
   industry     String?
+  isEtf        Boolean  @default(false)
   updatedAt    DateTime @updatedAt
 
+  // ETF holdings relation
+  etfHoldings  EtfHolding[]
+
   @@index([symbol])
+}
+
+// ETF holdings for sector breakdown
+model EtfHolding {
+  id           String   @id @default(cuid())
+  etfSymbol    String   // The ETF symbol (e.g., VTI)
+  holdingSymbol String  // The underlying holding symbol (e.g., AAPL)
+  holdingName  String?
+  weight       Float    // Percentage weight (0-100)
+  sector       String?
+  updatedAt    DateTime @updatedAt
+
+  // Relation to parent ETF
+  etf          StockCache @relation(fields: [etfSymbol], references: [symbol])
+
+  @@unique([etfSymbol, holdingSymbol])
+  @@index([etfSymbol])
 }
 
 model ChatMessage {

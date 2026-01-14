@@ -6,6 +6,71 @@ import Anthropic from '@anthropic-ai/sdk';
 
 // Cache duration in minutes
 const CACHE_DURATION = 15;
+const ETF_HOLDINGS_CACHE_DURATION = 24 * 60; // 24 hours for ETF holdings
+
+// Known ETF symbols for detection
+const KNOWN_ETFS = new Set([
+  'VTI', 'VOO', 'SPY', 'QQQ', 'IWM', 'VGT', 'XLF', 'XLE', 'VNQ', 'BND', 'AGG',
+  'VEA', 'VWO', 'VXUS', 'VIG', 'VYM', 'SCHD', 'VUG', 'VTV', 'VO', 'VB',
+  'IVV', 'IJH', 'IJR', 'IEFA', 'EFA', 'EEM', 'GLD', 'SLV', 'TLT', 'LQD',
+  'HYG', 'XLK', 'XLV', 'XLY', 'XLP', 'XLI', 'XLB', 'XLU', 'XLRE',
+  'ARKK', 'ARKG', 'ARKW', 'ARKF', 'ARKQ', 'DIA', 'RSP', 'MTUM', 'QUAL', 'USMV',
+]);
+
+// Asset type classification for holdings
+export type AssetType = 'Stocks' | 'Bonds' | 'Real Estate' | 'Commodities' | 'Cash' | 'Crypto' | 'Other';
+
+// Known bond ETFs and funds
+const BOND_SYMBOLS = new Set([
+  'BND', 'AGG', 'TLT', 'IEF', 'SHY', 'LQD', 'HYG', 'JNK', 'TIP', 'VCIT', 'VCSH',
+  'VGIT', 'VGSH', 'VGLT', 'BIV', 'BSV', 'BLV', 'GOVT', 'MUB', 'SUB', 'VTEB',
+  'BNDX', 'IAGG', 'EMB', 'PCY', 'SCHZ', 'SCHO', 'SCHR', 'SCHQ',
+]);
+
+// Known real estate ETFs/REITs
+const REAL_ESTATE_SYMBOLS = new Set([
+  'VNQ', 'VNQI', 'IYR', 'XLRE', 'SCHH', 'RWR', 'USRT', 'REET', 'SRVR', 'INDS',
+  'O', 'AMT', 'PLD', 'CCI', 'EQIX', 'PSA', 'SPG', 'DLR', 'WELL', 'AVB',
+]);
+
+// Known commodity ETFs
+const COMMODITY_SYMBOLS = new Set([
+  'GLD', 'SLV', 'IAU', 'GLDM', 'SIVR', 'PPLT', 'PALL', 'USO', 'UNG', 'DBC',
+  'GSG', 'PDBC', 'DJP', 'COMT', 'BCI',
+]);
+
+// Known crypto ETFs/trusts
+const CRYPTO_SYMBOLS = new Set([
+  'GBTC', 'ETHE', 'BITO', 'BTF', 'XBTF', 'BITQ', 'BLOK', 'LEGR', 'DAPP',
+  'IBIT', 'FBTC', 'ARKB', 'BITB', 'HODL', 'BTCO', 'EZBC', 'BRRR', 'BTCW',
+]);
+
+// Classify asset type based on symbol and sector
+export function classifyAssetType(symbol: string, sector?: string | null, industry?: string | null): AssetType {
+  const upperSymbol = symbol.toUpperCase().trim();
+
+  // Check specific symbol lists first
+  if (BOND_SYMBOLS.has(upperSymbol)) return 'Bonds';
+  if (REAL_ESTATE_SYMBOLS.has(upperSymbol)) return 'Real Estate';
+  if (COMMODITY_SYMBOLS.has(upperSymbol)) return 'Commodities';
+  if (CRYPTO_SYMBOLS.has(upperSymbol)) return 'Crypto';
+
+  // Check sector/industry for classification
+  if (sector) {
+    const lowerSector = sector.toLowerCase();
+    if (lowerSector.includes('real estate') || lowerSector === 'reit') return 'Real Estate';
+  }
+
+  if (industry) {
+    const lowerIndustry = industry.toLowerCase();
+    if (lowerIndustry.includes('bond')) return 'Bonds';
+    if (lowerIndustry.includes('real estate') || lowerIndustry.includes('reit')) return 'Real Estate';
+    if (lowerIndustry.includes('gold') || lowerIndustry.includes('silver') || lowerIndustry.includes('commodit')) return 'Commodities';
+  }
+
+  // Default to stocks for everything else (including stock ETFs)
+  return 'Stocks';
+}
 
 // Fallback: Fetch price from Finnhub (free tier: 60 calls/min)
 async function fetchPriceFromFinnhub(symbol: string): Promise<{ price: number; name?: string } | null> {
@@ -75,6 +140,92 @@ If you don't know the current price, respond with:
   } catch (error) {
     console.error(`[Stocks API] AI price lookup failed for ${symbol}:`, error instanceof Error ? error.message : 'Unknown');
     return null;
+  }
+}
+
+// Fetch and cache ETF holdings for sector breakdown
+async function fetchEtfHoldings(symbol: string): Promise<void> {
+  const normalizedSymbol = symbol.toUpperCase().trim();
+
+  // Check if we already have recent holdings
+  const existingHoldings = await prisma.etfHolding.findMany({
+    where: { etfSymbol: normalizedSymbol },
+    orderBy: { updatedAt: 'desc' },
+    take: 1,
+  });
+
+  const cacheThreshold = new Date(Date.now() - ETF_HOLDINGS_CACHE_DURATION * 60 * 1000);
+  if (existingHoldings.length > 0 && existingHoldings[0].updatedAt > cacheThreshold) {
+    console.log(`[ETF Holdings] Using cached holdings for ${normalizedSymbol}`);
+    return;
+  }
+
+  console.log(`[ETF Holdings] Fetching holdings for ${normalizedSymbol}...`);
+
+  try {
+    // Fetch ETF holdings from Yahoo Finance
+    const summary = await yahooFinance.quoteSummary(normalizedSymbol, {
+      modules: ['topHoldings'],
+    });
+
+    const topHoldings = (summary as { topHoldings?: { holdings?: Array<{ symbol?: string; holdingName?: string; holdingPercent?: number }> } })?.topHoldings?.holdings;
+
+    if (!topHoldings || topHoldings.length === 0) {
+      console.log(`[ETF Holdings] No holdings data for ${normalizedSymbol}`);
+      return;
+    }
+
+    console.log(`[ETF Holdings] Found ${topHoldings.length} holdings for ${normalizedSymbol}`);
+
+    // Clear old holdings
+    await prisma.etfHolding.deleteMany({
+      where: { etfSymbol: normalizedSymbol },
+    });
+
+    // Get sector info for each holding
+    const holdingsToInsert = [];
+    for (const holding of topHoldings.slice(0, 20)) { // Limit to top 20 holdings
+      if (!holding.symbol) continue;
+
+      const holdingSymbol = holding.symbol.toUpperCase().trim();
+      const weight = (holding.holdingPercent || 0) * 100; // Convert to percentage
+
+      // Try to get sector from cache or static map
+      let sector = null;
+      const cachedStock = await prisma.stockCache.findUnique({
+        where: { symbol: holdingSymbol },
+      });
+
+      if (cachedStock?.sector && cachedStock.sector !== 'ETF') {
+        sector = cachedStock.sector;
+      } else if (SECTOR_MAP[holdingSymbol]) {
+        sector = SECTOR_MAP[holdingSymbol].sector;
+      }
+
+      holdingsToInsert.push({
+        etfSymbol: normalizedSymbol,
+        holdingSymbol,
+        holdingName: holding.holdingName || holdingSymbol,
+        weight,
+        sector,
+      });
+    }
+
+    // Insert holdings
+    if (holdingsToInsert.length > 0) {
+      await prisma.etfHolding.createMany({
+        data: holdingsToInsert,
+      });
+      console.log(`[ETF Holdings] Cached ${holdingsToInsert.length} holdings for ${normalizedSymbol}`);
+
+      // Mark the stock as an ETF
+      await prisma.stockCache.update({
+        where: { symbol: normalizedSymbol },
+        data: { isEtf: true },
+      });
+    }
+  } catch (error) {
+    console.error(`[ETF Holdings] Failed to fetch holdings for ${normalizedSymbol}:`, error instanceof Error ? error.message : 'Unknown');
   }
 }
 
@@ -514,6 +665,15 @@ async function getStockData(requestedSymbols: string[], forceRefresh = false) {
     if (!stockData.sector) {
       stockData.sector = 'Unknown';
       console.log(`[Stocks API] No sector found for ${normalizedSymbol}, using Unknown`);
+    }
+
+    // Check if this is an ETF and fetch holdings for sector breakdown
+    const isEtf = stockData.sector === 'ETF' || KNOWN_ETFS.has(normalizedSymbol);
+    if (isEtf) {
+      // Fetch ETF holdings asynchronously (don't block the response)
+      fetchEtfHoldings(normalizedSymbol).catch((err) => {
+        console.error(`[Stocks API] Background ETF holdings fetch failed for ${normalizedSymbol}:`, err);
+      });
     }
 
     // Always upsert to cache (even with partial data)

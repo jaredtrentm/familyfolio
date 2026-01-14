@@ -57,7 +57,8 @@
     "performance": "Performance",
     "recentTransactions": "Recent Transactions",
     "noHoldings": "No holdings yet. Claim some transactions to get started.",
-    "viewAll": "View All"
+    "viewAll": "View All",
+    "assetTypes": "Asset Types"
   },
   "transactions": {
     "title": "My Transactions",
@@ -144,7 +145,14 @@
     "annualReportDescYtd": "Year-to-date performance with current holdings analysis",
     "yearToDate": "YTD",
     "standardExports": "Standard Exports",
-    "download": "Download"
+    "download": "Download",
+    "gainsReport": "Gains Report",
+    "gainsReportDescription": "Detailed report of realized capital gains and losses for tax preparation, with acquisition dates and holding periods.",
+    "gainsReportTitle": "Capital Gains/Loss Report",
+    "gainsReportDesc": "Long-term vs short-term gains breakdown with lot-level acquisition dates",
+    "formatHtml": "HTML",
+    "formatExcel": "Excel",
+    "formatPdf": "PDF"
   },
   "settings": {
     "title": "Settings",

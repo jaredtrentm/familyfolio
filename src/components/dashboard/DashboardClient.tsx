@@ -5,7 +5,9 @@ import { PortfolioSummary } from './PortfolioSummary';
 import { HoldingsTable } from './HoldingsTable';
 import { AccountsManager } from './AccountsManager';
 import { AllocationChart } from '@/components/charts/AllocationChart';
+import { AssetTypeChart } from '@/components/charts/AssetTypeChart';
 import { PerformanceChart } from '@/components/charts/PerformanceChart';
+import { classifyAssetType, type AssetType } from '@/lib/asset-types';
 
 interface Holding {
   symbol: string;
@@ -148,6 +150,22 @@ export function DashboardClient({
     }, {} as Record<string, number>);
   }, [holdings]);
 
+  // Calculate asset type allocation (stocks, bonds, real estate, etc.)
+  const assetTypeAllocation = useMemo(() => {
+    const allocation = holdings.reduce((acc, h) => {
+      const assetType = classifyAssetType(h.symbol, h.sector);
+      acc[assetType] = (acc[assetType] || 0) + Math.abs(h.currentValue);
+      return acc;
+    }, {} as Record<AssetType, number>);
+
+    // Add cash to the allocation
+    if (totalCash > 0) {
+      allocation['Cash'] = (allocation['Cash'] || 0) + totalCash;
+    }
+
+    return allocation;
+  }, [holdings, totalCash]);
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -166,6 +184,9 @@ export function DashboardClient({
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <AllocationChart data={sectorAllocation} locale={locale} />
+            <AssetTypeChart data={assetTypeAllocation} locale={locale} />
+          </div>
+          <div className="grid grid-cols-1 gap-6">
             <PerformanceChart locale={locale} />
           </div>
 

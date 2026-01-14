@@ -103,11 +103,63 @@ async function getDashboardData(userId: string) {
   const totalCostBasis = holdings.reduce((sum, h) => sum + h.costBasis, 0);
   const totalGainLoss = totalValue - totalCostBasis;
 
-  // Calculate allocation by sector
+  // Get ETF holdings for sector breakdown
+  const etfSymbols = holdings
+    .filter((h) => h.sector === 'ETF')
+    .map((h) => h.symbol);
+
+  const etfHoldings = etfSymbols.length > 0
+    ? await prisma.etfHolding.findMany({
+        where: { etfSymbol: { in: etfSymbols } },
+      })
+    : [];
+
+  // Group ETF holdings by ETF symbol
+  const etfHoldingsMap = new Map<string, typeof etfHoldings>();
+  for (const holding of etfHoldings) {
+    const existing = etfHoldingsMap.get(holding.etfSymbol) || [];
+    existing.push(holding);
+    etfHoldingsMap.set(holding.etfSymbol, existing);
+  }
+
+  // Calculate allocation by sector, breaking down ETFs by their holdings
   const sectorAllocation = holdings.reduce(
     (acc, h) => {
       const sector = h.sector || 'Unknown';
-      acc[sector] = (acc[sector] || 0) + h.currentValue;
+
+      // If this is an ETF and we have holdings data, distribute across sectors
+      if (sector === 'ETF') {
+        const etfDetails = etfHoldingsMap.get(h.symbol);
+        if (etfDetails && etfDetails.length > 0) {
+          // Calculate total weight we have sector data for
+          const holdingsWithSector = etfDetails.filter((eh) => eh.sector);
+          const totalWeight = holdingsWithSector.reduce((sum, eh) => sum + eh.weight, 0);
+
+          if (totalWeight > 0) {
+            // Distribute ETF value across sectors based on holdings
+            for (const eh of holdingsWithSector) {
+              const sectorValue = (h.currentValue * eh.weight) / totalWeight;
+              acc[eh.sector!] = (acc[eh.sector!] || 0) + sectorValue;
+            }
+
+            // Any remaining value (holdings without sector) goes to "ETF"
+            const remainingValue = h.currentValue - (h.currentValue * totalWeight / 100);
+            if (remainingValue > 0.01) {
+              acc['ETF'] = (acc['ETF'] || 0) + remainingValue;
+            }
+          } else {
+            // No sector data for holdings, keep as ETF
+            acc['ETF'] = (acc['ETF'] || 0) + h.currentValue;
+          }
+        } else {
+          // No holdings data, keep as ETF
+          acc['ETF'] = (acc['ETF'] || 0) + h.currentValue;
+        }
+      } else {
+        // Regular stock, use its sector
+        acc[sector] = (acc[sector] || 0) + h.currentValue;
+      }
+
       return acc;
     },
     {} as Record<string, number>

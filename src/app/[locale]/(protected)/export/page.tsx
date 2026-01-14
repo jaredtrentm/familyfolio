@@ -82,6 +82,19 @@ export default function ExportPage() {
     setShowYearPicker(null);
 
     try {
+      // For PDF, open in new tab for browser's print-to-PDF functionality
+      if (format === 'pdf') {
+        const url = `/api/export/annual-report?year=${year}&format=html&locale=${locale}&print=true`;
+        const printWindow = window.open(url, '_blank');
+        if (printWindow) {
+          printWindow.onload = () => {
+            setTimeout(() => printWindow.print(), 500);
+          };
+        }
+        setIsExporting(null);
+        return;
+      }
+
       const response = await fetch(`/api/export/annual-report?year=${year}&format=${format}&locale=${locale}`);
 
       if (!response.ok) {
@@ -93,8 +106,8 @@ export default function ExportPage() {
       const a = document.createElement('a');
       a.href = url;
 
-      const extensions = { html: 'html', excel: 'xlsx', pdf: 'html' };
-      a.download = `annual-report-${year}.${extensions[format]}`;
+      const extensions = { html: 'html', excel: 'xlsx' };
+      a.download = `annual-report-${year}.${extensions[format as 'html' | 'excel']}`;
 
       document.body.appendChild(a);
       a.click();
@@ -112,6 +125,19 @@ export default function ExportPage() {
     setShowYearPicker(null);
 
     try {
+      // For PDF, open in new tab for browser's print-to-PDF functionality
+      if (format === 'pdf') {
+        const url = `/api/export/gains-report?year=${year}&format=html&locale=${locale}&print=true`;
+        const printWindow = window.open(url, '_blank');
+        if (printWindow) {
+          printWindow.onload = () => {
+            setTimeout(() => printWindow.print(), 500);
+          };
+        }
+        setIsExporting(null);
+        return;
+      }
+
       const response = await fetch(`/api/export/gains-report?year=${year}&format=${format}&locale=${locale}`);
 
       if (!response.ok) {
@@ -123,8 +149,8 @@ export default function ExportPage() {
       const a = document.createElement('a');
       a.href = url;
 
-      const extensions = { html: 'html', excel: 'xlsx', pdf: 'html' };
-      a.download = `gains-report-${year}.${extensions[format]}`;
+      const extensions = { html: 'html', excel: 'xlsx' };
+      a.download = `gains-report-${year}.${extensions[format as 'html' | 'excel']}`;
 
       document.body.appendChild(a);
       a.click();

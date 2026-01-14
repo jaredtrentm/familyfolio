@@ -57,7 +57,8 @@
     "performance": "表现",
     "recentTransactions": "最近交易",
     "noHoldings": "暂无持仓，请先认领一些交易。",
-    "viewAll": "查看全部"
+    "viewAll": "查看全部",
+    "assetTypes": "资产类型"
   },
   "transactions": {
     "title": "我的交易",
@@ -144,7 +145,14 @@
     "annualReportDescYtd": "年初至今的投资表现和当前持仓分析",
     "yearToDate": "年初至今",
     "standardExports": "标准导出",
-    "download": "下载"
+    "download": "下载",
+    "gainsReport": "收益报告",
+    "gainsReportDescription": "用于报税的已实现资本收益和损失详细报告，包含购入日期和持有期限。",
+    "gainsReportTitle": "资本收益/损失报告",
+    "gainsReportDesc": "长期与短期收益明细，包含每笔交易的购入日期",
+    "formatHtml": "网页",
+    "formatExcel": "Excel",
+    "formatPdf": "PDF"
   },
   "settings": {
     "title": "设置",
