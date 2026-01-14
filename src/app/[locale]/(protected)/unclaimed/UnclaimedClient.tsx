@@ -301,7 +301,7 @@ export function UnclaimedClient({ transactions, locale, userId }: UnclaimedClien
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder='Ask AI: "Show me Apple purchases from last summer" or "Find all dividend transactions"'
+              placeholder='Ask AI: "Find duplicates", "Show Apple purchases", or "Find all dividends"'
               className="w-full pl-10 pr-10 py-2.5 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               disabled={isSearching}
             />

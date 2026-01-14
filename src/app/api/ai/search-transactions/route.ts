@@ -73,7 +73,43 @@ export async function POST(request: NextRequest) {
       description: tx.description,
     }));
 
-    const prompt = `You are helping a user find specific transactions from their investment portfolio.
+    // Check if user is asking about duplicates
+    const isDuplicateQuery = /duplicate|dup|重复|重覆/i.test(query);
+
+    let prompt: string;
+
+    if (isDuplicateQuery) {
+      // Special prompt for duplicate detection
+      prompt = `You are an expert at detecting duplicate financial transactions. Analyze these transactions and find ALL likely duplicates.
+
+Here are all available transactions:
+${JSON.stringify(transactionList, null, 2)}
+
+A transaction is likely a DUPLICATE if:
+1. Same symbol AND same type AND same quantity AND same price (most likely duplicate)
+2. Same symbol AND same type AND same quantity AND dates within 3 days of each other (possible data import overlap)
+3. Same symbol AND same type AND very similar amount (within 1%) AND dates within 1 week (possible rounding difference)
+4. Same symbol AND same quantity AND same price but different dates - could be intentional OR a duplicate with wrong date
+
+For each pair/group of duplicates found:
+- Include ALL transaction IDs that are duplicates of each other (not just one from each pair)
+- The user should see all related duplicates so they can choose which to keep
+
+Return a JSON object with:
+1. "matchingIds": array of ALL transaction IDs that appear to be duplicates (include all transactions in duplicate groups)
+2. "duplicateGroups": array of arrays, where each inner array contains IDs that are duplicates of each other
+3. "message": a summary like "Found X potential duplicate transactions in Y groups. Review carefully before deleting."
+
+Example:
+{"matchingIds": ["id1", "id2", "id3", "id4"], "duplicateGroups": [["id1", "id2"], ["id3", "id4"]], "message": "Found 4 potential duplicate transactions in 2 groups. Same AAPL buys appear twice."}
+
+If no duplicates found:
+{"matchingIds": [], "duplicateGroups": [], "message": "No duplicate transactions detected. All transactions appear unique."}
+
+Return ONLY the JSON object, nothing else.`;
+    } else {
+      // Standard search prompt
+      prompt = `You are helping a user find specific transactions from their investment portfolio.
 
 Here are all available transactions:
 ${JSON.stringify(transactionList, null, 2)}
@@ -100,6 +136,7 @@ If no matches found:
 {"matchingIds": [], "message": "No transactions found matching your search. Try searching for a stock symbol or time period."}
 
 Return ONLY the JSON object, nothing else.`;
+    }
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',

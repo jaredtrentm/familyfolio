@@ -171,10 +171,31 @@ ${formatClosedPositionsForAI(closedPositions)}
 - Long-term (>1 year): ${portfolioData.totalRealizedGainLongTerm >= 0 ? '+' : ''}$${portfolioData.totalRealizedGainLongTerm.toFixed(2)}
 - Short-term (<1 year): ${portfolioData.totalRealizedGainShortTerm >= 0 ? '+' : ''}$${portfolioData.totalRealizedGainShortTerm.toFixed(2)}
 
-=== RECENT TRANSACTIONS ===
-${transactions.slice(0, 5).map((tx) =>
-  `${tx.type} ${tx.quantity} ${tx.symbol} @ $${tx.price}`
-).join('\n') || 'None'}
+=== RECENT TRANSACTIONS (Most Recent 10) ===
+${transactions.slice(0, 10).map((tx) => {
+  const txDate = tx.date.toISOString().split('T')[0];
+  return `${txDate}: ${tx.type} ${tx.quantity.toFixed(4)} ${tx.symbol} @ $${tx.price.toFixed(2)} (Total: $${tx.amount.toFixed(2)})`;
+}).join('\n') || 'None'}
+
+=== ALL TRANSACTIONS BY SYMBOL (with dates for gains calculations) ===
+${(() => {
+  // Group transactions by symbol for easier AI reference
+  const bySymbol = new Map<string, typeof transactions>();
+  for (const tx of transactions) {
+    const sym = tx.symbol.toUpperCase().trim();
+    if (!bySymbol.has(sym)) bySymbol.set(sym, []);
+    bySymbol.get(sym)!.push(tx);
+  }
+
+  return Array.from(bySymbol.entries()).map(([symbol, txs]) => {
+    const sortedTxs = [...txs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const txLines = sortedTxs.map(tx => {
+      const txDate = tx.date.toISOString().split('T')[0];
+      return `  ${txDate}: ${tx.type} ${tx.quantity.toFixed(4)} @ $${tx.price.toFixed(2)}`;
+    }).join('\n');
+    return `${symbol}:\n${txLines}`;
+  }).join('\n\n');
+})() || 'No transactions'}
 
 === NOTES ===
 - Prices marked as "market" are from stock price feeds
@@ -182,10 +203,13 @@ ${transactions.slice(0, 5).map((tx) =>
 - The dashboard will automatically try to fetch current prices on page load
 - "Closed Positions" are stocks the user fully sold - use this data for historical questions
 - Long-term gains (>1 year holding) are taxed differently than short-term gains
+- ALL TRANSACTIONS include dates - use these for calculating holding periods and tax implications
+- When generating gains/loss reports, use FIFO (First In, First Out) - oldest shares are sold first
 
 Provide helpful, accurate information about their portfolio. Be concise but informative.
 If asked about specific stocks (current or previously held), use the portfolio data above.
-If asked about past trades or realized gains, refer to the Closed Positions section.
+If asked about past trades or realized gains, refer to the Closed Positions section and transaction dates.
+If asked to generate a gains/loss report, use the transaction dates to determine acquisition dates and holding periods.
 If asked about recommendations, provide general guidance but remind them to consult a financial advisor.
 Never reveal data from other users - you can only see this user's portfolio.`;
 

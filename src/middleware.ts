@@ -14,12 +14,33 @@ const publicPaths = ['/login', '/register'];
 // Paths that should skip locale handling
 const apiPaths = ['/api'];
 
+// Security headers to apply to all responses
+function addSecurityHeaders(response: NextResponse): NextResponse {
+  // Prevent clickjacking attacks
+  response.headers.set('X-Frame-Options', 'DENY');
+
+  // Prevent MIME type sniffing
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+
+  // Enable XSS filter in older browsers
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+
+  // Referrer policy - don't leak sensitive data in referrer
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  // Permissions Policy - restrict browser features
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
+  return response;
+}
+
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip API routes
+  // Skip API routes but add security headers
   if (apiPaths.some((path) => pathname.startsWith(path))) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    return addSecurityHeaders(response);
   }
 
   // Apply intl middleware
@@ -45,7 +66,8 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(dashboardUrl);
   }
 
-  return response;
+  // Add security headers to all responses
+  return addSecurityHeaders(response as NextResponse);
 }
 
 export const config = {
