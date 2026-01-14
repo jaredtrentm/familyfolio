@@ -66,6 +66,12 @@ function generateDatePoints(startDate: Date, endDate: Date, period: TimePeriod):
       break;
 
     case 'YTD':
+      // Weekly points for YTD to show better trend
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
+        points.push(new Date(d));
+      }
+      break;
+
     case '1Y':
       // Monthly points - one per month
       const currentMonth = end.getMonth();
@@ -123,6 +129,7 @@ function formatDateLabel(date: Date, period: TimePeriod): string {
     case '3M':
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     case 'YTD':
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     case '1Y':
       return date.toLocaleDateString('en-US', { month: 'short' });
     case '5Y':
