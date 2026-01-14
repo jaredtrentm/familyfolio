@@ -26,6 +26,10 @@ model User {
   chatMessages ChatMessage[]
   accounts     Account[]
   links        Link[]
+
+  // Share requests
+  sentShareRequests     ShareRequest[] @relation("SentShareRequests")
+  receivedShareRequests ShareRequest[] @relation("ReceivedShareRequests")
 }
 
 model Account {
@@ -167,4 +171,23 @@ model Link {
 
   @@index([userId])
   @@index([accountId])
+}
+
+// Share requests for unclaimed transactions pool
+model ShareRequest {
+  id            String   @id @default(cuid())
+  requesterId   String   // User who sent the request
+  targetId      String   // User who receives the request
+  status        String   @default("pending") // pending, approved, denied
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  requester     User     @relation("SentShareRequests", fields: [requesterId], references: [id])
+  target        User     @relation("ReceivedShareRequests", fields: [targetId], references: [id])
+
+  @@unique([requesterId, targetId]) // Prevent duplicate requests
+  @@index([requesterId])
+  @@index([targetId])
+  @@index([status])
 }

@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import { jsPDF } from 'jspdf';
 import {
   calculatePortfolioFromTransactions,
   formatClosedPositionsForExport,
@@ -131,129 +132,182 @@ export async function GET(request: NextRequest) {
     }
 
     if (format === 'pdf') {
-      // For PDF, we'll return a simple HTML that can be printed
-      // In production, you'd use a PDF library like pdfkit or puppeteer
+      // Generate actual PDF using jsPDF
       const totalValue = holdings.reduce((sum, h) => sum + h['Current Value'], 0);
       const totalCost = holdings.reduce((sum, h) => sum + h['Cost Basis'], 0);
       const totalUnrealized = totalValue - totalCost;
 
-      const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Portfolio Report</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    h1 { color: #333; }
-    h2 { color: #444; margin-top: 30px; }
-    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background: #f4f4f4; }
-    .summary { margin: 20px 0; background: #f9f9f9; padding: 15px; border-radius: 8px; }
-    .positive { color: green; }
-    .negative { color: red; }
-    .section { page-break-inside: avoid; }
-  </style>
-</head>
-<body>
-  <h1>Portfolio Report</h1>
-  <p>Generated: ${new Date().toLocaleDateString()}</p>
+      const doc = new jsPDF();
+      let y = 20;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 15;
+      const contentWidth = pageWidth - margin * 2;
 
-  <div class="summary">
-    <h2>Summary</h2>
-    <p><strong>Current Holdings:</strong> ${holdings.length} positions</p>
-    <p><strong>Total Value:</strong> $${totalValue.toFixed(2)}</p>
-    <p><strong>Total Cost Basis:</strong> $${totalCost.toFixed(2)}</p>
-    <p><strong>Unrealized Gain/Loss:</strong> <span class="${totalUnrealized >= 0 ? 'positive' : 'negative'}">$${totalUnrealized.toFixed(2)} (${totalCost > 0 ? ((totalUnrealized / totalCost) * 100).toFixed(2) : 0}%)</span></p>
-    <hr/>
-    <p><strong>Closed Positions:</strong> ${closedPositionsData.length}</p>
-    <p><strong>Total Realized Gain/Loss:</strong> <span class="${portfolioData.totalRealizedGain >= 0 ? 'positive' : 'negative'}">$${portfolioData.totalRealizedGain.toFixed(2)}</span></p>
-    <p><strong>&nbsp;&nbsp;- Long-term (>1 year):</strong> <span class="${portfolioData.totalRealizedGainLongTerm >= 0 ? 'positive' : 'negative'}">$${portfolioData.totalRealizedGainLongTerm.toFixed(2)}</span></p>
-    <p><strong>&nbsp;&nbsp;- Short-term (<1 year):</strong> <span class="${portfolioData.totalRealizedGainShortTerm >= 0 ? 'positive' : 'negative'}">$${portfolioData.totalRealizedGainShortTerm.toFixed(2)}</span></p>
-  </div>
+      // Helper to add new page if needed
+      const checkPageBreak = (neededHeight: number) => {
+        if (y + neededHeight > doc.internal.pageSize.getHeight() - 20) {
+          doc.addPage();
+          y = 20;
+        }
+      };
 
-  <div class="section">
-    <h2>Current Holdings</h2>
-    <table>
-      <tr>
-        <th>Symbol</th>
-        <th>Shares</th>
-        <th>Avg Cost</th>
-        <th>Current Price</th>
-        <th>Current Value</th>
-        <th>Unrealized Gain/Loss</th>
-      </tr>
-      ${holdings.map((h) => `
-        <tr>
-          <td>${h.Symbol}</td>
-          <td>${h.Shares.toFixed(4)}</td>
-          <td>$${h['Avg Cost'].toFixed(2)}</td>
-          <td>$${h['Current Price'].toFixed(2)}</td>
-          <td>$${h['Current Value'].toFixed(2)}</td>
-          <td class="${h['Gain/Loss (Unrealized)'] >= 0 ? 'positive' : 'negative'}">$${h['Gain/Loss (Unrealized)'].toFixed(2)} (${h['Gain/Loss %'].toFixed(2)}%)</td>
-        </tr>
-      `).join('')}
-    </table>
-  </div>
+      // Title
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Portfolio Report', margin, y);
+      y += 10;
 
-  ${closedPositionsData.length > 0 ? `
-  <div class="section">
-    <h2>Closed Positions (Realized Gains)</h2>
-    <table>
-      <tr>
-        <th>Symbol</th>
-        <th>Shares</th>
-        <th>Cost Basis</th>
-        <th>Proceeds</th>
-        <th>Realized Gain/Loss</th>
-        <th>Holding Period</th>
-        <th>Tax Treatment</th>
-      </tr>
-      ${closedPositionsData.map((cp) => `
-        <tr>
-          <td>${cp.symbol}</td>
-          <td>${Number(cp.sharesSold).toFixed(4)}</td>
-          <td>$${Number(cp.costBasis).toFixed(2)}</td>
-          <td>$${Number(cp.proceeds).toFixed(2)}</td>
-          <td class="${Number(cp.realizedGain) >= 0 ? 'positive' : 'negative'}">$${Number(cp.realizedGain).toFixed(2)} (${Number(cp.realizedGainPercent).toFixed(2)}%)</td>
-          <td>${cp.holdingPeriodDays} days</td>
-          <td>${cp.taxTreatment}</td>
-        </tr>
-      `).join('')}
-    </table>
-  </div>
-  ` : ''}
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, margin, y);
+      y += 15;
 
-  <div class="section">
-    <h2>Recent Transactions</h2>
-    <table>
-      <tr>
-        <th>Date</th>
-        <th>Type</th>
-        <th>Symbol</th>
-        <th>Quantity</th>
-        <th>Price</th>
-        <th>Amount</th>
-      </tr>
-      ${txData.slice(0, 20).map((tx) => `
-        <tr>
-          <td>${tx.Date}</td>
-          <td>${tx.Type}</td>
-          <td>${tx.Symbol}</td>
-          <td>${tx.Quantity}</td>
-          <td>$${tx.Price.toFixed(2)}</td>
-          <td>$${tx.Amount.toFixed(2)}</td>
-        </tr>
-      `).join('')}
-    </table>
-  </div>
-</body>
-</html>`;
+      // Summary Section
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary', margin, y);
+      y += 8;
 
-      return new NextResponse(html, {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const summaryLines = [
+        `Current Holdings: ${holdings.length} positions`,
+        `Total Value: $${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `Total Cost Basis: $${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `Unrealized Gain/Loss: $${totalUnrealized.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${totalCost > 0 ? ((totalUnrealized / totalCost) * 100).toFixed(2) : 0}%)`,
+        ``,
+        `Closed Positions: ${closedPositionsData.length}`,
+        `Total Realized Gain/Loss: $${portfolioData.totalRealizedGain.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `  - Long-term (>1 year): $${portfolioData.totalRealizedGainLongTerm.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `  - Short-term (<1 year): $${portfolioData.totalRealizedGainShortTerm.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      ];
+
+      for (const line of summaryLines) {
+        doc.text(line, margin, y);
+        y += 5;
+      }
+      y += 10;
+
+      // Current Holdings Table
+      checkPageBreak(50);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Current Holdings', margin, y);
+      y += 8;
+
+      // Table headers
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      const holdingsCols = ['Symbol', 'Shares', 'Avg Cost', 'Price', 'Value', 'Gain/Loss'];
+      const colWidths = [25, 25, 25, 25, 30, 40];
+      let x = margin;
+      for (let i = 0; i < holdingsCols.length; i++) {
+        doc.text(holdingsCols[i], x, y);
+        x += colWidths[i];
+      }
+      y += 5;
+
+      // Table rows
+      doc.setFont('helvetica', 'normal');
+      for (const h of holdings) {
+        checkPageBreak(8);
+        x = margin;
+        doc.text(h.Symbol, x, y);
+        x += colWidths[0];
+        doc.text(h.Shares.toFixed(2), x, y);
+        x += colWidths[1];
+        doc.text(`$${h['Avg Cost'].toFixed(2)}`, x, y);
+        x += colWidths[2];
+        doc.text(`$${h['Current Price'].toFixed(2)}`, x, y);
+        x += colWidths[3];
+        doc.text(`$${h['Current Value'].toFixed(2)}`, x, y);
+        x += colWidths[4];
+        const gainText = `$${h['Gain/Loss (Unrealized)'].toFixed(2)} (${h['Gain/Loss %'].toFixed(1)}%)`;
+        doc.text(gainText, x, y);
+        y += 5;
+      }
+      y += 10;
+
+      // Closed Positions Table (if any)
+      if (closedPositionsData.length > 0) {
+        checkPageBreak(50);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Closed Positions (Realized Gains)', margin, y);
+        y += 8;
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        const closedCols = ['Symbol', 'Shares', 'Cost', 'Proceeds', 'Gain/Loss', 'Tax'];
+        x = margin;
+        for (let i = 0; i < closedCols.length; i++) {
+          doc.text(closedCols[i], x, y);
+          x += colWidths[i];
+        }
+        y += 5;
+
+        doc.setFont('helvetica', 'normal');
+        for (const cp of closedPositionsData) {
+          checkPageBreak(8);
+          x = margin;
+          doc.text(String(cp.symbol), x, y);
+          x += colWidths[0];
+          doc.text(Number(cp.sharesSold).toFixed(2), x, y);
+          x += colWidths[1];
+          doc.text(`$${Number(cp.costBasis).toFixed(2)}`, x, y);
+          x += colWidths[2];
+          doc.text(`$${Number(cp.proceeds).toFixed(2)}`, x, y);
+          x += colWidths[3];
+          doc.text(`$${Number(cp.realizedGain).toFixed(2)}`, x, y);
+          x += colWidths[4];
+          doc.text(String(cp.taxTreatment), x, y);
+          y += 5;
+        }
+        y += 10;
+      }
+
+      // Recent Transactions
+      checkPageBreak(50);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Recent Transactions', margin, y);
+      y += 8;
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      const txCols = ['Date', 'Type', 'Symbol', 'Qty', 'Price', 'Amount'];
+      x = margin;
+      for (let i = 0; i < txCols.length; i++) {
+        doc.text(txCols[i], x, y);
+        x += colWidths[i];
+      }
+      y += 5;
+
+      doc.setFont('helvetica', 'normal');
+      for (const tx of txData.slice(0, 20)) {
+        checkPageBreak(8);
+        x = margin;
+        doc.text(tx.Date, x, y);
+        x += colWidths[0];
+        doc.text(tx.Type, x, y);
+        x += colWidths[1];
+        doc.text(tx.Symbol, x, y);
+        x += colWidths[2];
+        doc.text(String(tx.Quantity), x, y);
+        x += colWidths[3];
+        doc.text(`$${tx.Price.toFixed(2)}`, x, y);
+        x += colWidths[4];
+        doc.text(`$${tx.Amount.toFixed(2)}`, x, y);
+        y += 5;
+      }
+
+      // Generate PDF buffer
+      const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+
+      return new NextResponse(pdfBuffer, {
         headers: {
-          'Content-Type': 'text/html',
-          'Content-Disposition': 'attachment; filename="portfolio-report.html"',
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': 'attachment; filename="portfolio-report.pdf"',
         },
       });
     }

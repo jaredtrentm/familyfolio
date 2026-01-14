@@ -200,6 +200,20 @@ async function fetchEtfHoldings(symbol: string): Promise<void> {
         sector = cachedStock.sector;
       } else if (SECTOR_MAP[holdingSymbol]) {
         sector = SECTOR_MAP[holdingSymbol].sector;
+      } else {
+        // Try to fetch sector from Yahoo Finance for this holding
+        try {
+          const holdingSummary = await yahooFinance.quoteSummary(holdingSymbol, {
+            modules: ['assetProfile'],
+          });
+          const summaryData = holdingSummary as { assetProfile?: { sector?: string } } | null;
+          if (summaryData?.assetProfile?.sector) {
+            sector = summaryData.assetProfile.sector;
+            console.log(`[ETF Holdings] Got sector for ${holdingSymbol}: ${sector}`);
+          }
+        } catch {
+          // Ignore errors for individual holdings
+        }
       }
 
       holdingsToInsert.push({
@@ -377,9 +391,14 @@ export async function POST(request: NextRequest) {
     const stocks = await getStockData(symbols, true);
     console.log('[Stocks API] Fetched stocks:', stocks.map(s => ({ symbol: s.symbol, price: s.currentPrice, sector: s.sector })));
 
+    // Get ETF holdings for sector breakdown
+    const etfSymbols = stocks.filter(s => s.sector === 'ETF' || s.isEtf || KNOWN_ETFS.has(s.symbol)).map(s => s.symbol);
+    const etfHoldings = etfSymbols.length > 0 ? await getEtfHoldings(etfSymbols) : {};
+
     return NextResponse.json({
       updated: stocks.length,
       stocks,
+      etfHoldings,
     });
   } catch (error) {
     console.error('[Stocks Update API] Error:', error);
@@ -716,4 +735,35 @@ async function getStockData(requestedSymbols: string[], forceRefresh = false) {
   });
 
   return allCached;
+}
+
+// Get ETF holdings for sector breakdown
+export async function getEtfHoldings(symbols: string[]) {
+  const normalizedSymbols = symbols.map(s => s.toUpperCase().trim());
+
+  const holdings = await prisma.etfHolding.findMany({
+    where: { etfSymbol: { in: normalizedSymbols } },
+  });
+
+  // Group by ETF symbol
+  const holdingsByEtf: Record<string, Array<{
+    holdingSymbol: string;
+    holdingName: string | null;
+    weight: number;
+    sector: string | null;
+  }>> = {};
+
+  for (const holding of holdings) {
+    if (!holdingsByEtf[holding.etfSymbol]) {
+      holdingsByEtf[holding.etfSymbol] = [];
+    }
+    holdingsByEtf[holding.etfSymbol].push({
+      holdingSymbol: holding.holdingSymbol,
+      holdingName: holding.holdingName,
+      weight: holding.weight,
+      sector: holding.sector,
+    });
+  }
+
+  return holdingsByEtf;
 }

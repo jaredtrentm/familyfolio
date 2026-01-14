@@ -63,7 +63,7 @@ export default function ExportPage() {
       const a = document.createElement('a');
       a.href = url;
 
-      const extensions = { pdf: 'html', excel: 'xlsx', zip: 'zip' };
+      const extensions = { pdf: 'pdf', excel: 'xlsx', zip: 'zip' };
       a.download = `portfolio-export.${extensions[format]}`;
 
       document.body.appendChild(a);

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { Globe, Key, Lock, Trash2 } from 'lucide-react';
+import { ShareManager } from '@/components/settings/ShareManager';
 
 interface SettingsClientProps {
   locale: string;
@@ -84,6 +85,9 @@ export function SettingsClient({ locale, user }: SettingsClientProps) {
             </button>
           </div>
         </div>
+
+        {/* Share Management */}
+        <ShareManager />
 
         {/* Change PIN */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">

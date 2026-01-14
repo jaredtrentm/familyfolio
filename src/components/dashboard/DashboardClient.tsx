@@ -26,7 +26,17 @@ interface StockData {
   name: string;
   currentPrice: number;
   sector: string | null;
+  isEtf?: boolean;
 }
+
+interface EtfHolding {
+  holdingSymbol: string;
+  holdingName: string | null;
+  weight: number;
+  sector: string | null;
+}
+
+type EtfHoldingsMap = Record<string, EtfHolding[]>;
 
 interface DashboardClientProps {
   holdings: Holding[];
@@ -41,6 +51,7 @@ export function DashboardClient({
 }: DashboardClientProps) {
   const [totalCash, setTotalCash] = useState(0);
   const [stockPrices, setStockPrices] = useState<Map<string, StockData>>(new Map());
+  const [etfHoldings, setEtfHoldings] = useState<EtfHoldingsMap>({});
 
   const handleTotalCashChange = useCallback((cash: number) => {
     setTotalCash(cash);
@@ -69,9 +80,15 @@ export function DashboardClient({
             name: stock.name || normalizedSymbol,
             currentPrice: stock.currentPrice || 0,
             sector: stock.sector,
+            isEtf: stock.isEtf || stock.sector === 'ETF',
           });
         }
         setStockPrices(newPrices);
+      }
+
+      // Store ETF holdings for sector breakdown
+      if (data.etfHoldings) {
+        setEtfHoldings(data.etfHoldings);
       }
     } catch (error) {
       console.error('[Dashboard] Failed to refresh stock data:', error);
@@ -141,14 +158,49 @@ export function DashboardClient({
     };
   }, [holdings, totalCash]);
 
-  // Calculate sector allocation from holdings - always use current data
+  // Calculate sector allocation from holdings - break down ETFs into underlying sectors
   const sectorAllocation = useMemo(() => {
-    return holdings.reduce((acc, h) => {
-      const sector = h.sector || 'Unknown';
-      acc[sector] = (acc[sector] || 0) + Math.abs(h.currentValue);
-      return acc;
-    }, {} as Record<string, number>);
-  }, [holdings]);
+    const allocation: Record<string, number> = {};
+
+    for (const h of holdings) {
+      const normalizedSymbol = h.symbol.toUpperCase().trim();
+      const stock = stockPrices.get(normalizedSymbol);
+      const isEtf = stock?.isEtf || h.sector === 'ETF';
+      const holdingValue = Math.abs(h.currentValue);
+
+      // If this is an ETF and we have its holdings, distribute value by sector
+      if (isEtf && etfHoldings[normalizedSymbol] && etfHoldings[normalizedSymbol].length > 0) {
+        const etfComponents = etfHoldings[normalizedSymbol];
+        let totalWeight = 0;
+
+        // First pass: add up weights for components with known sectors
+        for (const component of etfComponents) {
+          if (component.sector && component.sector !== 'ETF') {
+            totalWeight += component.weight;
+          }
+        }
+
+        // Second pass: distribute value proportionally
+        if (totalWeight > 0) {
+          for (const component of etfComponents) {
+            if (component.sector && component.sector !== 'ETF') {
+              const sectorValue = (holdingValue * component.weight) / totalWeight;
+              allocation[component.sector] = (allocation[component.sector] || 0) + sectorValue;
+            }
+          }
+        } else {
+          // If no sector info available, fall back to "Diversified" instead of "ETF"
+          allocation['Diversified'] = (allocation['Diversified'] || 0) + holdingValue;
+        }
+      } else {
+        // Not an ETF or no holdings data - use direct sector
+        const sector = h.sector === 'ETF' ? 'Diversified' : (h.sector || 'Unknown');
+        allocation[sector] = (allocation[sector] || 0) + holdingValue;
+      }
+    }
+
+    return allocation;
+  }, [holdings, stockPrices, etfHoldings]);
 
   // Calculate asset type allocation (stocks, bonds, real estate, etc.)
   const assetTypeAllocation = useMemo(() => {
