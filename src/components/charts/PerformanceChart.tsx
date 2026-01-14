@@ -138,21 +138,23 @@ export function PerformanceChart({ locale }: PerformanceChartProps) {
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 11, fill: '#6B7280' }}
+                tick={{ fontSize: 13, fill: '#4B5563', fontWeight: 500 }}
                 axisLine={false}
                 tickLine={false}
                 interval="preserveStartEnd"
+                dy={5}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: '#6B7280' }}
+                tick={{ fontSize: 13, fill: '#4B5563', fontWeight: 500 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(value) => {
                   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
                   if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
-                  return `$${value}`;
+                  return `$${value.toFixed(0)}`;
                 }}
                 domain={['dataMin', 'dataMax']}
+                width={65}
               />
               <Tooltip
                 formatter={(value) => [

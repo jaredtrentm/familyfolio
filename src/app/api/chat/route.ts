@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
 import Anthropic from '@anthropic-ai/sdk';
+import {
+  calculatePortfolioFromTransactions,
+  formatClosedPositionsForAI,
+  type Transaction as PortfolioTransaction,
+} from '@/lib/portfolio-utils';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -68,34 +73,21 @@ export async function POST(request: NextRequest) {
       orderBy: { date: 'desc' },
     });
 
-    // Calculate holdings
-    const holdingsMap = new Map<string, { symbol: string; quantity: number; costBasis: number }>();
+    // Calculate current holdings and closed positions using utility
+    const portfolioTx: PortfolioTransaction[] = transactions.map(tx => ({
+      id: tx.id,
+      symbol: tx.symbol,
+      type: tx.type,
+      quantity: tx.quantity,
+      price: tx.price,
+      amount: tx.amount,
+      fees: tx.fees,
+      date: tx.date,
+    }));
 
-    for (const tx of transactions) {
-      const existing = holdingsMap.get(tx.symbol) || { symbol: tx.symbol, quantity: 0, costBasis: 0 };
-
-      switch (tx.type) {
-        case 'BUY':
-        case 'TRANSFER_IN':
-          existing.quantity += tx.quantity;
-          existing.costBasis += tx.amount;
-          break;
-        case 'SELL':
-        case 'TRANSFER_OUT':
-          const ratio = tx.quantity / existing.quantity;
-          existing.quantity -= tx.quantity;
-          existing.costBasis -= existing.costBasis * ratio;
-          break;
-      }
-
-      if (existing.quantity > 0) {
-        holdingsMap.set(tx.symbol, existing);
-      } else {
-        holdingsMap.delete(tx.symbol);
-      }
-    }
-
-    const holdings = Array.from(holdingsMap.values());
+    const portfolioData = calculatePortfolioFromTransactions(portfolioTx);
+    const holdings = Array.from(portfolioData.currentHoldings.values());
+    const closedPositions = portfolioData.closedPositions;
     const totalCostBasis = holdings.reduce((sum, h) => sum + h.costBasis, 0);
 
     // Get stock prices from cache with normalized symbols
@@ -171,6 +163,14 @@ ${portfolioSummary || 'No holdings yet'}
 - Total Gain/Loss: ${totalGainLoss >= 0 ? '+' : ''}$${totalGainLoss.toFixed(2)} (${totalGainLossPercent >= 0 ? '+' : ''}${totalGainLossPercent.toFixed(2)}%)
 - Number of Holdings: ${holdings.length}
 
+=== CLOSED POSITIONS (Fully Sold Holdings) ===
+${formatClosedPositionsForAI(closedPositions)}
+
+=== REALIZED GAINS SUMMARY ===
+- Total Realized Gain/Loss: ${portfolioData.totalRealizedGain >= 0 ? '+' : ''}$${portfolioData.totalRealizedGain.toFixed(2)}
+- Long-term (>1 year): ${portfolioData.totalRealizedGainLongTerm >= 0 ? '+' : ''}$${portfolioData.totalRealizedGainLongTerm.toFixed(2)}
+- Short-term (<1 year): ${portfolioData.totalRealizedGainShortTerm >= 0 ? '+' : ''}$${portfolioData.totalRealizedGainShortTerm.toFixed(2)}
+
 === RECENT TRANSACTIONS ===
 ${transactions.slice(0, 5).map((tx) =>
   `${tx.type} ${tx.quantity} ${tx.symbol} @ $${tx.price}`
@@ -180,9 +180,12 @@ ${transactions.slice(0, 5).map((tx) =>
 - Prices marked as "market" are from stock price feeds
 - Prices marked as "estimated (avg cost)" mean the market price isn't available yet
 - The dashboard will automatically try to fetch current prices on page load
+- "Closed Positions" are stocks the user fully sold - use this data for historical questions
+- Long-term gains (>1 year holding) are taxed differently than short-term gains
 
 Provide helpful, accurate information about their portfolio. Be concise but informative.
-If asked about specific stocks, use the portfolio data above.
+If asked about specific stocks (current or previously held), use the portfolio data above.
+If asked about past trades or realized gains, refer to the Closed Positions section.
 If asked about recommendations, provide general guidance but remind them to consult a financial advisor.
 Never reveal data from other users - you can only see this user's portfolio.`;
 

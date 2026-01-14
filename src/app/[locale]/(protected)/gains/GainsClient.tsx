@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { formatCurrency, formatDate, formatNumber, cn } from '@/lib/utils';
-import { TrendingUp, TrendingDown, CheckCircle, Clock, DollarSign, Percent } from 'lucide-react';
+import { TrendingUp, TrendingDown, CheckCircle, Clock, DollarSign, Percent, Archive } from 'lucide-react';
 
 interface RealizedGain {
   id: string;
@@ -27,9 +27,25 @@ interface UnrealizedGain {
   gainPercent: number;
 }
 
+interface ClosedPositionData {
+  symbol: string;
+  totalSharesBought: number;
+  totalSharesSold: number;
+  totalCostBasis: number;
+  totalProceeds: number;
+  totalFees: number;
+  realizedGain: number;
+  realizedGainPercent: number;
+  firstBuyDate: string;
+  lastSellDate: string;
+  holdingPeriodDays: number;
+  isLongTerm: boolean;
+}
+
 interface GainsClientProps {
   realizedGains: RealizedGain[];
   unrealizedGains: UnrealizedGain[];
+  closedPositions: ClosedPositionData[];
   totalRealizedGain: number;
   totalRealizedProceeds: number;
   totalRealizedCostBasis: number;
@@ -38,14 +54,18 @@ interface GainsClientProps {
   totalUnrealizedValue: number;
   totalUnrealizedCostBasis: number;
   totalUnrealizedGainPercent: number;
+  totalClosedPositionGain: number;
+  totalClosedPositionGainLongTerm: number;
+  totalClosedPositionGainShortTerm: number;
   locale: string;
 }
 
-type TabType = 'unrealized' | 'realized';
+type TabType = 'unrealized' | 'realized' | 'closed';
 
 export function GainsClient({
   realizedGains,
   unrealizedGains,
+  closedPositions,
   totalRealizedGain,
   totalRealizedCostBasis,
   totalRealizedGainPercent,
@@ -53,6 +73,9 @@ export function GainsClient({
   totalUnrealizedValue,
   totalUnrealizedCostBasis,
   totalUnrealizedGainPercent,
+  totalClosedPositionGain,
+  totalClosedPositionGainLongTerm,
+  totalClosedPositionGainShortTerm,
   locale,
 }: GainsClientProps) {
   const t = useTranslations('gains');
@@ -63,12 +86,32 @@ export function GainsClient({
   const tabs = [
     { id: 'unrealized' as const, label: t('unrealized'), icon: Clock },
     { id: 'realized' as const, label: t('realized'), icon: CheckCircle },
+    { id: 'closed' as const, label: t('closedPositions') || 'Closed Positions', icon: Archive },
   ];
 
-  const totalGain = activeTab === 'unrealized' ? totalUnrealizedGain : totalRealizedGain;
-  const totalCostBasis = activeTab === 'unrealized' ? totalUnrealizedCostBasis : totalRealizedCostBasis;
-  const totalGainPercent = activeTab === 'unrealized' ? totalUnrealizedGainPercent : totalRealizedGainPercent;
-  const totalValue = activeTab === 'unrealized' ? totalUnrealizedValue : totalRealizedGain + totalRealizedCostBasis;
+  // Calculate totals based on active tab
+  let totalGain: number;
+  let totalCostBasis: number;
+  let totalGainPercent: number;
+  let totalValue: number;
+
+  if (activeTab === 'unrealized') {
+    totalGain = totalUnrealizedGain;
+    totalCostBasis = totalUnrealizedCostBasis;
+    totalGainPercent = totalUnrealizedGainPercent;
+    totalValue = totalUnrealizedValue;
+  } else if (activeTab === 'realized') {
+    totalGain = totalRealizedGain;
+    totalCostBasis = totalRealizedCostBasis;
+    totalGainPercent = totalRealizedGainPercent;
+    totalValue = totalRealizedGain + totalRealizedCostBasis;
+  } else {
+    // closed positions
+    totalGain = totalClosedPositionGain;
+    totalCostBasis = closedPositions.reduce((sum, cp) => sum + cp.totalCostBasis, 0);
+    totalGainPercent = totalCostBasis > 0 ? (totalGain / totalCostBasis) * 100 : 0;
+    totalValue = closedPositions.reduce((sum, cp) => sum + cp.totalProceeds, 0);
+  }
 
   return (
     <div className="space-y-6">
@@ -194,10 +237,20 @@ export function GainsClient({
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'unrealized' ? (
+      {activeTab === 'unrealized' && (
         <UnrealizedGainsTable gains={unrealizedGains} localeCode={localeCode} t={t} />
-      ) : (
+      )}
+      {activeTab === 'realized' && (
         <RealizedGainsTable gains={realizedGains} localeCode={localeCode} t={t} />
+      )}
+      {activeTab === 'closed' && (
+        <ClosedPositionsTable
+          positions={closedPositions}
+          localeCode={localeCode}
+          t={t}
+          totalLongTerm={totalClosedPositionGainLongTerm}
+          totalShortTerm={totalClosedPositionGainShortTerm}
+        />
       )}
     </div>
   );
@@ -385,6 +438,172 @@ function RealizedGainsTable({
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+function ClosedPositionsTable({
+  positions,
+  localeCode,
+  t,
+  totalLongTerm,
+  totalShortTerm,
+}: {
+  positions: ClosedPositionData[];
+  localeCode: string;
+  t: ReturnType<typeof useTranslations>;
+  totalLongTerm: number;
+  totalShortTerm: number;
+}) {
+  if (positions.length === 0) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center border border-gray-200 dark:border-gray-700">
+        <Archive className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+        <p className="text-gray-500 dark:text-gray-400">
+          {t('noClosedPositions') || 'No closed positions yet'}
+        </p>
+        <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+          {t('closedPositionsDesc') || 'Closed positions appear when you fully sell a stock'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Tax Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {t('longTermGains') || 'Long-term Gains (>1 year)'}
+              </p>
+              <p className={cn(
+                'text-xl font-bold mt-1',
+                totalLongTerm >= 0
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-600 dark:text-red-400'
+              )}>
+                {totalLongTerm >= 0 ? '+' : ''}
+                {formatCurrency(totalLongTerm, 'USD', localeCode)}
+              </p>
+            </div>
+            <div className="text-xs text-gray-400 dark:text-gray-500 text-right">
+              {t('lowerTaxRate') || 'Lower tax rate'}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {t('shortTermGains') || 'Short-term Gains (<1 year)'}
+              </p>
+              <p className={cn(
+                'text-xl font-bold mt-1',
+                totalShortTerm >= 0
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-600 dark:text-red-400'
+              )}>
+                {totalShortTerm >= 0 ? '+' : ''}
+                {formatCurrency(totalShortTerm, 'USD', localeCode)}
+              </p>
+            </div>
+            <div className="text-xs text-gray-400 dark:text-gray-500 text-right">
+              {t('ordinaryIncomeTaxRate') || 'Ordinary income tax rate'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Closed Positions Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700/50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('symbol')}
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('shares')}
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('costBasis')}
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('proceeds')}
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('gain')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('holdingPeriod') || 'Holding Period'}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('taxTreatment') || 'Tax Treatment'}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              {positions.map((position) => (
+                <tr key={position.symbol} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {position.symbol}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatDate(position.firstBuyDate)} - {formatDate(position.lastSellDate)}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
+                    {formatNumber(position.totalSharesSold, localeCode)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
+                    {formatCurrency(position.totalCostBasis, 'USD', localeCode)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-white">
+                    {formatCurrency(position.totalProceeds, 'USD', localeCode)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <div className={cn(
+                      'text-sm font-medium',
+                      position.realizedGain >= 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    )}>
+                      <div>
+                        {position.realizedGain >= 0 ? '+' : ''}
+                        {formatCurrency(position.realizedGain, 'USD', localeCode)}
+                      </div>
+                      <div className="text-xs opacity-75">
+                        ({position.realizedGainPercent >= 0 ? '+' : ''}{position.realizedGainPercent.toFixed(2)}%)
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {position.holdingPeriodDays} {t('days') || 'days'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={cn(
+                      'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                      position.isLongTerm
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                    )}>
+                      {position.isLongTerm
+                        ? (t('longTerm') || 'Long-term')
+                        : (t('shortTerm') || 'Short-term')}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

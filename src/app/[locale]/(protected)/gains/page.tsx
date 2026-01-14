@@ -2,6 +2,11 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
 import { GainsClient } from './GainsClient';
+import {
+  calculatePortfolioFromTransactions,
+  type Transaction as PortfolioTransaction,
+  type ClosedPosition,
+} from '@/lib/portfolio-utils';
 
 export async function generateMetadata({
   params,
@@ -151,6 +156,24 @@ async function getGainsData(userId: string) {
   // Sort realized by date descending (most recent first)
   realizedGains.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+  // Calculate closed positions (fully sold stocks) using the utility
+  const portfolioTx: PortfolioTransaction[] = transactions.map(tx => ({
+    id: tx.id,
+    symbol: tx.symbol,
+    type: tx.type,
+    quantity: tx.quantity,
+    price: tx.price,
+    amount: tx.amount,
+    fees: tx.fees,
+    date: tx.date,
+  }));
+
+  const portfolioData = calculatePortfolioFromTransactions(portfolioTx);
+  const closedPositions = portfolioData.closedPositions;
+
+  // Sort closed positions by last sell date descending
+  closedPositions.sort((a, b) => b.lastSellDate.getTime() - a.lastSellDate.getTime());
+
   // Calculate totals
   const totalRealizedGain = realizedGains.reduce((sum, r) => sum + r.gain, 0);
   const totalRealizedProceeds = realizedGains.reduce((sum, r) => sum + r.proceeds, 0);
@@ -163,6 +186,7 @@ async function getGainsData(userId: string) {
   return {
     realizedGains,
     unrealizedGains,
+    closedPositions,
     totalRealizedGain,
     totalRealizedProceeds,
     totalRealizedCostBasis,
@@ -175,6 +199,9 @@ async function getGainsData(userId: string) {
     totalUnrealizedGainPercent: totalUnrealizedCostBasis > 0
       ? (totalUnrealizedGain / totalUnrealizedCostBasis) * 100
       : 0,
+    totalClosedPositionGain: portfolioData.totalRealizedGain,
+    totalClosedPositionGainLongTerm: portfolioData.totalRealizedGainLongTerm,
+    totalClosedPositionGainShortTerm: portfolioData.totalRealizedGainShortTerm,
   };
 }
 
@@ -193,5 +220,27 @@ export default async function GainsPage({
 
   const data = await getGainsData(session.id);
 
-  return <GainsClient {...data} locale={locale} />;
+  // Serialize closed positions for client component
+  const serializedClosedPositions = data.closedPositions.map(cp => ({
+    symbol: cp.symbol,
+    totalSharesBought: cp.totalSharesBought,
+    totalSharesSold: cp.totalSharesSold,
+    totalCostBasis: cp.totalCostBasis,
+    totalProceeds: cp.totalProceeds,
+    totalFees: cp.totalFees,
+    realizedGain: cp.realizedGain,
+    realizedGainPercent: cp.realizedGainPercent,
+    firstBuyDate: cp.firstBuyDate.toISOString(),
+    lastSellDate: cp.lastSellDate.toISOString(),
+    holdingPeriodDays: cp.holdingPeriodDays,
+    isLongTerm: cp.isLongTerm,
+  }));
+
+  return (
+    <GainsClient
+      {...data}
+      closedPositions={serializedClosedPositions}
+      locale={locale}
+    />
+  );
 }

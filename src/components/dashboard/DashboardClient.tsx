@@ -76,11 +76,21 @@ export function DashboardClient({
     }
   }, [initialHoldings.length]);
 
-  // Auto-refresh stock data on mount
+  // Auto-refresh stock data on mount and every 5 minutes
   useEffect(() => {
-    if (initialHoldings.length > 0) {
+    if (initialHoldings.length === 0) return;
+
+    // Initial refresh
+    refreshStockData();
+
+    // Set up periodic refresh every 5 minutes
+    const intervalId = setInterval(() => {
+      console.log('[Dashboard] Auto-refreshing stock prices...');
       refreshStockData();
-    }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    // Cleanup on unmount
+    return () => clearInterval(intervalId);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Recalculate holdings with current prices
