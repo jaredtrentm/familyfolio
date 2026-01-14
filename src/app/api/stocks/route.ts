@@ -7,6 +7,77 @@ import Anthropic from '@anthropic-ai/sdk';
 // Cache duration in minutes
 const CACHE_DURATION = 15;
 
+// Fallback: Fetch price from Finnhub (free tier: 60 calls/min)
+async function fetchPriceFromFinnhub(symbol: string): Promise<{ price: number; name?: string } | null> {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey) {
+    console.log('[Stocks API] No FINNHUB_API_KEY configured');
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${apiKey}`
+    );
+
+    if (!response.ok) {
+      console.error(`[Stocks API] Finnhub returned ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    // Finnhub returns: { c: current, h: high, l: low, o: open, pc: previous close, t: timestamp }
+    if (data && data.c && data.c > 0) {
+      console.log(`[Stocks API] Finnhub returned price for ${symbol}: $${data.c}`);
+      return { price: data.c };
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`[Stocks API] Finnhub fetch failed for ${symbol}:`, error instanceof Error ? error.message : 'Unknown');
+    return null;
+  }
+}
+
+// Fallback: Use AI to look up current stock price
+async function fetchPriceFromAI(symbol: string, stockName: string): Promise<{ price: number } | null> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return null;
+  }
+
+  try {
+    const anthropic = new Anthropic();
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 100,
+      messages: [
+        {
+          role: 'user',
+          content: `What is the current stock price for ${symbol} (${stockName})?
+Respond with ONLY a JSON object in this exact format, no other text:
+{"price": 123.45}
+
+If you don't know the current price, respond with:
+{"price": 0}`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type === 'text') {
+      const parsed = JSON.parse(content.text.trim());
+      if (parsed.price && parsed.price > 0) {
+        console.log(`[Stocks API] AI returned price for ${symbol}: $${parsed.price}`);
+        return { price: parsed.price };
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error(`[Stocks API] AI price lookup failed for ${symbol}:`, error instanceof Error ? error.message : 'Unknown');
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
@@ -341,6 +412,24 @@ async function getStockData(requestedSymbols: string[], forceRefresh = false) {
     } catch (yahooError) {
       console.error(`[Stocks API] Yahoo Finance failed for ${symbol}:`, yahooError instanceof Error ? yahooError.message : 'Unknown error');
       // Continue with fallbacks below
+    }
+
+    // Fallback 1: Try Finnhub if Yahoo Finance didn't return a price
+    if (stockData.currentPrice === 0) {
+      const finnhubData = await fetchPriceFromFinnhub(normalizedSymbol);
+      if (finnhubData && finnhubData.price > 0) {
+        stockData.currentPrice = finnhubData.price;
+        console.log(`[Stocks API] Using Finnhub price for ${normalizedSymbol}: $${stockData.currentPrice}`);
+      }
+    }
+
+    // Fallback 2: Try AI if still no price (uses Claude's knowledge)
+    if (stockData.currentPrice === 0) {
+      const aiData = await fetchPriceFromAI(normalizedSymbol, stockData.name);
+      if (aiData && aiData.price > 0) {
+        stockData.currentPrice = aiData.price;
+        console.log(`[Stocks API] Using AI price for ${normalizedSymbol}: $${stockData.currentPrice}`);
+      }
     }
 
     // Try to get sector/industry info from quoteSummary (only if we got a price)
