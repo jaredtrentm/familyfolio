@@ -32,21 +32,49 @@ function getStartDate(period: TimePeriod): Date {
 function getDataPoints(period: TimePeriod): number {
   switch (period) {
     case '1D':
-      return 24;
+      return 24;    // Hourly
     case '1W':
-      return 7;
+      return 7;     // Daily
     case '1M':
-      return 30;
+      return 30;    // Daily
     case '3M':
-      return 90;
+      return 12;    // ~Weekly (every ~7-8 days)
     case 'YTD':
+      return 12;    // Monthly
     case '1Y':
-      return 52;
+      return 12;    // Monthly
     case '5Y':
-      return 60;
+      return 20;    // Quarterly
     case 'MAX':
     default:
-      return 100;
+      return 24;    // ~Quarterly/Yearly depending on range
+  }
+}
+
+function formatDateLabel(date: Date, period: TimePeriod, index: number, total: number): string {
+  switch (period) {
+    case '1D':
+      return date.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
+    case '1W':
+      return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
+    case '1M':
+      // Show every ~5th day to avoid clutter
+      if (index % 5 === 0 || index === total) {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+      return date.toLocaleDateString('en-US', { day: 'numeric' });
+    case '3M':
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    case 'YTD':
+    case '1Y':
+      return date.toLocaleDateString('en-US', { month: 'short' });
+    case '5Y':
+      // Show quarter + year
+      const quarter = Math.floor(date.getMonth() / 3) + 1;
+      return `Q${quarter} '${date.getFullYear().toString().slice(-2)}`;
+    case 'MAX':
+    default:
+      return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
   }
 }
 
@@ -147,14 +175,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Format date based on period
-      let dateLabel: string;
-      if (period === '1D') {
-        dateLabel = pointDate.toLocaleTimeString('en-US', { hour: 'numeric' });
-      } else if (period === '1W' || period === '1M') {
-        dateLabel = pointDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      } else {
-        dateLabel = pointDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-      }
+      const dateLabel = formatDateLabel(pointDate, period, i, dataPoints);
 
       history.push({
         date: dateLabel,
