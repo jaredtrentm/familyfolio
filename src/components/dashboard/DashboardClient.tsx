@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { RefreshCw } from 'lucide-react';
 import { PortfolioSummary } from './PortfolioSummary';
 import { HoldingsTable } from './HoldingsTable';
 import { AccountsManager } from './AccountsManager';
@@ -39,31 +38,29 @@ export function DashboardClient({
   noHoldingsMessage,
 }: DashboardClientProps) {
   const [totalCash, setTotalCash] = useState(0);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [stockPrices, setStockPrices] = useState<Map<string, StockData>>(new Map());
 
   const handleTotalCashChange = useCallback((cash: number) => {
     setTotalCash(cash);
   }, []);
 
-  const handleRefreshStockData = useCallback(async () => {
+  // Fetch latest stock data (prices and sectors) from cache
+  const refreshStockData = useCallback(async () => {
     if (initialHoldings.length === 0) return;
 
-    setIsRefreshing(true);
     try {
-      // Force refresh stock data (will fetch new prices and sectors via AI)
+      // Refresh stock data cache
       const response = await fetch('/api/stocks', { method: 'POST' });
       const data = await response.json();
 
-      console.log('[Dashboard] Stock API response:', data);
-
       if (data.error) {
         console.error('[Dashboard] API error:', data.error);
-      } else if (data.stocks && Array.isArray(data.stocks)) {
+        return;
+      }
+
+      if (data.stocks && Array.isArray(data.stocks)) {
         const newPrices = new Map<string, StockData>();
         for (const stock of data.stocks) {
-          // Store with uppercase symbol for consistent matching
           const normalizedSymbol = stock.symbol.toUpperCase().trim();
           newPrices.set(normalizedSymbol, {
             symbol: normalizedSymbol,
@@ -71,26 +68,18 @@ export function DashboardClient({
             currentPrice: stock.currentPrice || 0,
             sector: stock.sector,
           });
-          console.log(`[Dashboard] Loaded ${normalizedSymbol}: price=${stock.currentPrice}, sector=${stock.sector}`);
         }
         setStockPrices(newPrices);
-        console.log('[Dashboard] Updated stockPrices map with', newPrices.size, 'stocks');
-      } else {
-        console.warn('[Dashboard] No stocks in response:', data);
       }
-
-      setLastRefresh(new Date());
     } catch (error) {
-      console.error('Failed to refresh stock data:', error);
-    } finally {
-      setIsRefreshing(false);
+      console.error('[Dashboard] Failed to refresh stock data:', error);
     }
   }, [initialHoldings.length]);
 
   // Auto-refresh stock data on mount
   useEffect(() => {
     if (initialHoldings.length > 0) {
-      handleRefreshStockData();
+      refreshStockData();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -149,9 +138,6 @@ export function DashboardClient({
     }, {} as Record<string, number>);
   }, [holdings]);
 
-  // Check if any holdings have "Unknown" sector
-  const hasUnknownSectors = holdings.some((h) => h.sector === 'Unknown');
-
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -169,55 +155,12 @@ export function DashboardClient({
         <>
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <AllocationChart data={sectorAllocation} locale={locale} />
-              {/* Refresh data warning */}
-              {hasUnknownSectors && (
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 flex items-center justify-between">
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                    Update sector weights and current stock prices.
-                  </p>
-                  <button
-                    onClick={handleRefreshStockData}
-                    disabled={isRefreshing}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
-                  </button>
-                </div>
-              )}
-            </div>
+            <AllocationChart data={sectorAllocation} locale={locale} />
             <PerformanceChart locale={locale} />
           </div>
 
-          {/* Holdings Table with refresh button */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {lastRefresh && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Last updated: {lastRefresh.toLocaleTimeString()}
-                  </span>
-                )}
-                {isRefreshing && (
-                  <span className="text-xs text-blue-600 dark:text-blue-400">
-                    Fetching latest prices...
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={handleRefreshStockData}
-                disabled={isRefreshing}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
-                title="Refresh stock prices"
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Updating...' : 'Update Prices'}
-              </button>
-            </div>
-            <HoldingsTable holdings={holdings} locale={locale} />
-          </div>
+          {/* Holdings Table */}
+          <HoldingsTable holdings={holdings} locale={locale} />
         </>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center border border-gray-200 dark:border-gray-700">
