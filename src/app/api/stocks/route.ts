@@ -92,14 +92,19 @@ export async function GET(request: NextRequest) {
     const symbols = searchParams.get('symbols')?.split(',').filter(Boolean) || [];
     const debug = searchParams.get('debug') === 'true';
 
-    // Debug mode: test Yahoo Finance with a known symbol
+    // Debug mode: test all price sources
     if (debug) {
       const testSymbol = symbols[0] || 'AAPL';
       const debugInfo: Record<string, unknown> = {
         testSymbol,
         timestamp: new Date().toISOString(),
+        envVars: {
+          hasFinnhubKey: !!process.env.FINNHUB_API_KEY,
+          hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+        },
       };
 
+      // Test Yahoo Finance
       try {
         console.log(`[Stocks API Debug] Testing Yahoo Finance with ${testSymbol}...`);
         const quote = await yahooFinance.quote(testSymbol) as {
@@ -107,17 +112,49 @@ export async function GET(request: NextRequest) {
           regularMarketPrice?: number;
           shortName?: string;
         } | null;
-        debugInfo.yahooFinanceWorking = true;
-        debugInfo.quote = quote ? {
-          symbol: quote.symbol,
-          price: quote.regularMarketPrice,
-          name: quote.shortName,
-        } : null;
-        console.log(`[Stocks API Debug] Yahoo Finance returned:`, debugInfo.quote);
+        debugInfo.yahooFinance = {
+          working: true,
+          quote: quote ? {
+            symbol: quote.symbol,
+            price: quote.regularMarketPrice,
+            name: quote.shortName,
+          } : null,
+        };
       } catch (yahooError) {
-        debugInfo.yahooFinanceWorking = false;
-        debugInfo.yahooError = yahooError instanceof Error ? yahooError.message : 'Unknown error';
-        console.error(`[Stocks API Debug] Yahoo Finance error:`, yahooError);
+        debugInfo.yahooFinance = {
+          working: false,
+          error: yahooError instanceof Error ? yahooError.message : 'Unknown error',
+        };
+      }
+
+      // Test Finnhub
+      try {
+        const finnhubResult = await fetchPriceFromFinnhub(testSymbol);
+        debugInfo.finnhub = {
+          working: !!finnhubResult,
+          price: finnhubResult?.price || null,
+          hasApiKey: !!process.env.FINNHUB_API_KEY,
+        };
+      } catch (finnhubError) {
+        debugInfo.finnhub = {
+          working: false,
+          error: finnhubError instanceof Error ? finnhubError.message : 'Unknown error',
+        };
+      }
+
+      // Test AI price lookup
+      try {
+        const aiResult = await fetchPriceFromAI(testSymbol, 'Apple Inc');
+        debugInfo.aiPriceLookup = {
+          working: !!aiResult,
+          price: aiResult?.price || null,
+          hasApiKey: !!process.env.ANTHROPIC_API_KEY,
+        };
+      } catch (aiError) {
+        debugInfo.aiPriceLookup = {
+          working: false,
+          error: aiError instanceof Error ? aiError.message : 'Unknown error',
+        };
       }
 
       // Check what's in the cache
