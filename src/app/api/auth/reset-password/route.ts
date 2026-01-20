@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { hashPassword, createToken, setAuthCookie } from '@/lib/auth';
+import bcrypt from 'bcryptjs';
 
-// Password strength validation
+// Password strength validation (same as register)
 function validatePasswordStrength(password: string): { valid: boolean; error?: string } {
   if (password.length < 8) {
     return { valid: false, error: 'Password must be at least 8 characters' };
@@ -25,11 +25,11 @@ function validatePasswordStrength(password: string): { valid: boolean; error?: s
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, name, pin, locale = 'en' } = body;
+    const { email, token, password } = body;
 
-    if (!email || !password || !name) {
+    if (!email || !token || !password) {
       return NextResponse.json(
-        { error: 'Email, password, and name are required' },
+        { error: 'Email, token, and password are required' },
         { status: 400 }
       );
     }
@@ -43,64 +43,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate PIN format if provided
-    if (pin && (!/^\d{4}$/.test(pin))) {
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user || !user.passwordResetToken || !user.passwordResetExpires) {
       return NextResponse.json(
-        { error: 'PIN must be exactly 4 digits' },
+        { error: 'Invalid or expired reset link' },
         { status: 400 }
       );
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
+    // Check if token has expired
+    if (new Date() > user.passwordResetExpires) {
+      // Clear expired token
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetToken: null,
+          passwordResetExpires: null,
+        },
+      });
 
-    if (existingUser) {
       return NextResponse.json(
-        { error: 'An account with this email already exists' },
-        { status: 409 }
+        { error: 'Reset link has expired. Please request a new one.' },
+        { status: 400 }
       );
     }
 
-    // Hash password
-    const hashedPassword = await hashPassword(password);
+    // Verify token
+    const isValidToken = await bcrypt.compare(token, user.passwordResetToken);
+    if (!isValidToken) {
+      return NextResponse.json(
+        { error: 'Invalid or expired reset link' },
+        { status: 400 }
+      );
+    }
 
-    // Create user
-    const user = await prisma.user.create({
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Update password and clear reset token
+    await prisma.user.update({
+      where: { id: user.id },
       data: {
-        email: email.toLowerCase(),
         password: hashedPassword,
-        name,
-        pin: pin || null,
-        locale,
+        passwordResetToken: null,
+        passwordResetExpires: null,
       },
     });
-
-    // Create token
-    const token = await createToken({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      locale: user.locale,
-    });
-
-    // Set cookie
-    await setAuthCookie(token);
 
     return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        locale: user.locale,
-        hasPin: !!user.pin,
-      },
+      message: 'Password reset successfully',
     });
   } catch (error) {
-    console.error('[Register API] Error:', error);
+    console.error('[Reset Password API] Error:', error);
     return NextResponse.json(
-      { error: 'Registration failed' },
+      { error: 'Failed to reset password' },
       { status: 500 }
     );
   }

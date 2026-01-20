@@ -43,6 +43,23 @@ interface UnrealizedGain {
   gainPercent: number;
 }
 
+interface TaxLot {
+  id: string;
+  symbol: string;
+  name: string;
+  acquisitionDate: string;
+  quantity: number;
+  costBasisPerShare: number;
+  totalCostBasis: number;
+  currentPrice: number;
+  currentValue: number;
+  gain: number;
+  gainPercent: number;
+  holdingDays: number;
+  isLongTerm: boolean;
+  daysUntilLongTerm: number; // 0 if already long-term
+}
+
 async function getGainsData(userId: string) {
   // Get all claimed transactions for this user, ordered by date
   const transactions = await prisma.transaction.findMany({
@@ -174,7 +191,7 @@ async function getGainsData(userId: string) {
   // Sort closed positions by last sell date descending
   closedPositions.sort((a, b) => b.lastSellDate.getTime() - a.lastSellDate.getTime());
 
-  // Calculate totals
+  // Calculate totals (need these before annualized calculations)
   const totalRealizedGain = realizedGains.reduce((sum, r) => sum + r.gain, 0);
   const totalRealizedProceeds = realizedGains.reduce((sum, r) => sum + r.proceeds, 0);
   const totalRealizedCostBasis = realizedGains.reduce((sum, r) => sum + r.costBasis, 0);
@@ -183,10 +200,109 @@ async function getGainsData(userId: string) {
   const totalUnrealizedValue = unrealizedGains.reduce((sum, u) => sum + u.currentValue, 0);
   const totalUnrealizedCostBasis = unrealizedGains.reduce((sum, u) => sum + u.costBasis, 0);
 
+  // Calculate tax lots with detailed information
+  const taxLots: TaxLot[] = [];
+  const now = new Date();
+  let lotId = 0;
+
+  for (const [symbol, symbolLots] of lots) {
+    const stock = priceMap.get(symbol);
+    const currentPrice = stock?.currentPrice || 0;
+
+    for (const lot of symbolLots) {
+      if (lot.quantity <= 0.0001) continue;
+
+      const holdingDays = Math.floor((now.getTime() - lot.date.getTime()) / (1000 * 60 * 60 * 24));
+      const isLongTerm = holdingDays >= 365;
+      const daysUntilLongTerm = isLongTerm ? 0 : 365 - holdingDays;
+
+      const totalCostBasisLot = lot.quantity * lot.price;
+      const effectivePrice = currentPrice > 0 ? currentPrice : lot.price;
+      const currentValueLot = lot.quantity * effectivePrice;
+      const gainLot = currentValueLot - totalCostBasisLot;
+      const gainPercentLot = totalCostBasisLot > 0 ? (gainLot / totalCostBasisLot) * 100 : 0;
+
+      taxLots.push({
+        id: `lot-${++lotId}`,
+        symbol,
+        name: stock?.name || symbol,
+        acquisitionDate: lot.date.toISOString(),
+        quantity: lot.quantity,
+        costBasisPerShare: lot.price,
+        totalCostBasis: totalCostBasisLot,
+        currentPrice: effectivePrice,
+        currentValue: currentValueLot,
+        gain: gainLot,
+        gainPercent: gainPercentLot,
+        holdingDays,
+        isLongTerm,
+        daysUntilLongTerm,
+      });
+    }
+  }
+
+  // Sort tax lots by acquisition date (oldest first)
+  taxLots.sort((a, b) => new Date(a.acquisitionDate).getTime() - new Date(b.acquisitionDate).getTime());
+
+  // Calculate annualized returns
+  const firstTxDate = transactions.length > 0 ? transactions[0].date : new Date();
+  const totalCostBasisAll = totalUnrealizedCostBasis;
+  const totalCurrentValue = unrealizedGains.reduce((sum, u) => sum + u.currentValue, 0);
+  const totalGain = totalCurrentValue - totalCostBasisAll;
+
+  // Years since inception (minimum 0.1 to avoid division issues)
+  const yearsSinceInception = Math.max(
+    (now.getTime() - firstTxDate.getTime()) / (1000 * 60 * 60 * 24 * 365),
+    0.1
+  );
+
+  // CAGR = (EndValue / StartValue)^(1/years) - 1
+  const cagr = totalCostBasisAll > 0
+    ? (Math.pow(totalCurrentValue / totalCostBasisAll, 1 / yearsSinceInception) - 1) * 100
+    : 0;
+
+  // YTD calculation
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  const txAtYearStart = transactions.filter(tx => tx.date < yearStart);
+  let ytdStartValue = 0;
+
+  // Calculate portfolio value at year start using FIFO
+  const ytdLots = new Map<string, { quantity: number; price: number }[]>();
+  for (const tx of txAtYearStart) {
+    if (tx.type === 'BUY') {
+      const symLots = ytdLots.get(tx.symbol) || [];
+      symLots.push({ quantity: tx.quantity, price: tx.price });
+      ytdLots.set(tx.symbol, symLots);
+    } else if (tx.type === 'SELL') {
+      const symLots = ytdLots.get(tx.symbol) || [];
+      let remaining = tx.quantity;
+      while (remaining > 0 && symLots.length > 0) {
+        const lot = symLots[0];
+        const sellFromLot = Math.min(remaining, lot.quantity);
+        lot.quantity -= sellFromLot;
+        remaining -= sellFromLot;
+        if (lot.quantity <= 0.0001) symLots.shift();
+      }
+      ytdLots.set(tx.symbol, symLots);
+    }
+  }
+
+  for (const [, symLots] of ytdLots) {
+    for (const lot of symLots) {
+      // Use cost basis as approximate year-start value
+      ytdStartValue += lot.quantity * lot.price;
+    }
+  }
+
+  const ytdReturn = ytdStartValue > 0
+    ? ((totalCurrentValue - ytdStartValue) / ytdStartValue) * 100
+    : (totalCostBasisAll > 0 ? (totalGain / totalCostBasisAll) * 100 : 0);
+
   return {
     realizedGains,
     unrealizedGains,
     closedPositions,
+    taxLots,
     totalRealizedGain,
     totalRealizedProceeds,
     totalRealizedCostBasis,
@@ -202,6 +318,10 @@ async function getGainsData(userId: string) {
     totalClosedPositionGain: portfolioData.totalRealizedGain,
     totalClosedPositionGainLongTerm: portfolioData.totalRealizedGainLongTerm,
     totalClosedPositionGainShortTerm: portfolioData.totalRealizedGainShortTerm,
+    // Annualized returns
+    ytdReturn,
+    cagr,
+    yearsSinceInception,
   };
 }
 

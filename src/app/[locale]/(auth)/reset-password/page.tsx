@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Check, X } from 'lucide-react';
+import { ArrowLeft, KeyRound, CheckCircle, AlertCircle, Check, X } from 'lucide-react';
 
-// Password strength requirements
+// Password strength requirements (same as register)
 const PASSWORD_REQUIREMENTS = {
   minLength: 8,
   hasUppercase: /[A-Z]/,
@@ -30,39 +30,34 @@ function isPasswordValid(password: string) {
   return Object.values(strength).every(Boolean);
 }
 
-export default function RegisterPage() {
+export default function ResetPasswordPage() {
   const t = useTranslations('auth');
   const tCommon = useTranslations('common');
-  const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const locale = params.locale as string;
+
+  const token = searchParams.get('token');
+  const email = searchParams.get('email');
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [success, setSuccess] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [pin, setPin] = useState('');
   const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
 
   const passwordStrength = useMemo(() => checkPasswordStrength(password), [password]);
   const passwordsMatch = password === confirmPassword;
   const canSubmit = isPasswordValid(password) && passwordsMatch && confirmPassword.length > 0;
 
+  // Check if we have valid params
+  const hasValidParams = token && email;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!canSubmit) {
-      if (!isPasswordValid(password)) {
-        setError(t('passwordRequirementsNotMet'));
-        return;
-      }
-      if (!passwordsMatch) {
-        setError(t('passwordsDoNotMatch'));
-        return;
-      }
+    if (!canSubmit || !hasValidParams) {
       return;
     }
 
@@ -70,74 +65,96 @@ export default function RegisterPage() {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
           email,
+          token,
           password,
-          pin: pin || undefined,
-          locale,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Registration failed');
+        throw new Error(data.error || 'Failed to reset password');
       }
 
-      router.push(`/${locale}/dashboard`);
+      setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      setError(err instanceof Error ? err.message : 'Failed to reset password');
     } finally {
       setIsLoading(false);
     }
   };
 
+  if (!hasValidParams) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <div className="text-center">
+          <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
+            <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            {t('invalidResetToken')}
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">
+            This password reset link is invalid or has expired.
+          </p>
+          <Link
+            href={`/${locale}/forgot-password`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+          >
+            Request a new link
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <div className="text-center">
+          <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4">
+            <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            {t('resetPasswordSuccess')}
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">
+            You can now log in with your new password.
+          </p>
+          <Link
+            href={`/${locale}/login`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+          >
+            {t('login')}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
       <div className="text-center mb-8">
+        <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mb-4">
+          <KeyRound className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+        </div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {tCommon('appName')}
+          {t('resetPassword')}
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-2">
-          {t('register')}
+          Enter your new password below.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {t('name')}
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {t('email')}
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="you@example.com"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {t('password')}
+            {t('newPassword')}
           </label>
           <input
             type="password"
@@ -186,22 +203,6 @@ export default function RegisterPage() {
           )}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {t('pinOptional')}
-          </label>
-          <input
-            type="password"
-            inputMode="numeric"
-            pattern="[0-9]{4}"
-            maxLength={4}
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl tracking-widest"
-            placeholder="****"
-          />
-        </div>
-
         {error && (
           <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">
             {error}
@@ -213,17 +214,17 @@ export default function RegisterPage() {
           disabled={isLoading || !canSubmit}
           className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? tCommon('loading') : t('register')}
+          {isLoading ? tCommon('loading') : t('resetPassword')}
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-        {t('haveAccount')}{' '}
+      <p className="mt-6 text-center">
         <Link
           href={`/${locale}/login`}
-          className="text-blue-600 hover:text-blue-700 font-medium"
+          className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
         >
-          {t('login')}
+          <ArrowLeft className="w-4 h-4" />
+          {t('backToLogin')}
         </Link>
       </p>
     </div>

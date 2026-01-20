@@ -104,9 +104,17 @@ export default function LoginPage() {
 
         {loginMode === 'password' ? (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('password')}
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('password')}
+              </label>
+              <Link
+                href={`/${locale}/forgot-password`}
+                className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                {t('forgotPassword')}
+              </Link>
+            </div>
             <input
               type="password"
               value={password}

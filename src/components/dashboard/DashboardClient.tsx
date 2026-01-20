@@ -7,6 +7,7 @@ import { AccountsManager } from './AccountsManager';
 import { AllocationChart } from '@/components/charts/AllocationChart';
 import { AssetTypeChart } from '@/components/charts/AssetTypeChart';
 import { PerformanceChart } from '@/components/charts/PerformanceChart';
+import { HoldingsPieChart } from '@/components/charts/HoldingsPieChart';
 import { classifyAssetType, type AssetType } from '@/lib/asset-types';
 
 interface Holding {
@@ -235,10 +236,11 @@ export function DashboardClient({
         <>
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <HoldingsPieChart holdings={holdings} locale={locale} />
             <AllocationChart data={sectorAllocation} locale={locale} />
-            <AssetTypeChart data={assetTypeAllocation} locale={locale} />
           </div>
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <AssetTypeChart data={assetTypeAllocation} locale={locale} />
             <PerformanceChart locale={locale} />
           </div>
 

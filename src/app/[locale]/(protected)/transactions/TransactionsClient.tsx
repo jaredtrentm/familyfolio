@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
-import { Search, X, Plus, Trash2, Undo2, MoreVertical } from 'lucide-react';
+import { Search, X, Plus, Trash2, Undo2, MoreVertical, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface Transaction {
   id: string;
@@ -34,6 +34,11 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showMenuId, setShowMenuId] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
+
+  // Check if any filters are active
+  const hasActiveFilters = search.length > 0 || typeFilter !== null;
 
   // Form state
   const [formData, setFormData] = useState({
@@ -105,6 +110,7 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
       });
 
       if (response.ok) {
+        const data = await response.json();
         setShowAddForm(false);
         setFormData({
           date: new Date().toISOString().split('T')[0],
@@ -115,6 +121,22 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
           fees: '',
           description: '',
         });
+
+        // Clear filters so the new transaction is visible
+        setSearch('');
+        setTypeFilter(null);
+
+        // Track newly added transaction for highlighting
+        if (data.transaction?.id) {
+          setNewlyAddedId(data.transaction.id);
+          // Clear highlight after 3 seconds
+          setTimeout(() => setNewlyAddedId(null), 3000);
+        }
+
+        // Show success message
+        setSuccessMessage(t('transactionAdded') || 'Transaction added successfully');
+        setTimeout(() => setSuccessMessage(null), 3000);
+
         router.refresh();
       } else {
         const data = await response.json();
@@ -197,6 +219,14 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
         </button>
       </div>
 
+      {/* Success Toast */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg shadow-lg animate-in slide-in-from-top-2">
+          <CheckCircle className="w-5 h-5" />
+          {successMessage}
+        </div>
+      )}
+
       {/* Add Transaction Modal */}
       {showAddForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -212,6 +242,31 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Filter Warning */}
+            {hasActiveFilters && (
+              <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      {t('filterWarning') || 'You have filters active. Filters will be cleared after adding so you can see your new transaction.'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearch('');
+                        setTypeFilter(null);
+                      }}
+                      className="mt-1 text-xs text-amber-600 dark:text-amber-400 hover:underline"
+                    >
+                      {t('clearFiltersNow') || 'Clear filters now'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -409,7 +464,13 @@ export function TransactionsClient({ transactions, locale }: TransactionsClientP
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredTransactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                  <tr
+                    key={tx.id}
+                    className={cn(
+                      'hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors',
+                      newlyAddedId === tx.id && 'bg-green-50 dark:bg-green-900/20 animate-pulse'
+                    )}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {formatDate(tx.date)}
                     </td>

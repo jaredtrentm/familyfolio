@@ -20,6 +20,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Password reset
+  passwordResetToken   String?   // hashed token
+  passwordResetExpires DateTime? // token expiry
+
   // Relations
   transactions Transaction[] // claimed transactions
   dataUploads  DataUpload[]

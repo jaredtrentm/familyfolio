@@ -42,10 +42,28 @@ interface ClosedPositionData {
   isLongTerm: boolean;
 }
 
+interface TaxLot {
+  id: string;
+  symbol: string;
+  name: string;
+  acquisitionDate: string;
+  quantity: number;
+  costBasisPerShare: number;
+  totalCostBasis: number;
+  currentPrice: number;
+  currentValue: number;
+  gain: number;
+  gainPercent: number;
+  holdingDays: number;
+  isLongTerm: boolean;
+  daysUntilLongTerm: number;
+}
+
 interface GainsClientProps {
   realizedGains: RealizedGain[];
   unrealizedGains: UnrealizedGain[];
   closedPositions: ClosedPositionData[];
+  taxLots: TaxLot[];
   totalRealizedGain: number;
   totalRealizedProceeds: number;
   totalRealizedCostBasis: number;
@@ -57,15 +75,19 @@ interface GainsClientProps {
   totalClosedPositionGain: number;
   totalClosedPositionGainLongTerm: number;
   totalClosedPositionGainShortTerm: number;
+  ytdReturn: number;
+  cagr: number;
+  yearsSinceInception: number;
   locale: string;
 }
 
-type TabType = 'unrealized' | 'realized' | 'closed';
+type TabType = 'unrealized' | 'realized' | 'closed' | 'lots';
 
 export function GainsClient({
   realizedGains,
   unrealizedGains,
   closedPositions,
+  taxLots,
   totalRealizedGain,
   totalRealizedCostBasis,
   totalRealizedGainPercent,
@@ -76,6 +98,9 @@ export function GainsClient({
   totalClosedPositionGain,
   totalClosedPositionGainLongTerm,
   totalClosedPositionGainShortTerm,
+  ytdReturn,
+  cagr,
+  yearsSinceInception,
   locale,
 }: GainsClientProps) {
   const t = useTranslations('gains');
@@ -87,6 +112,7 @@ export function GainsClient({
     { id: 'unrealized' as const, label: t('unrealized'), icon: Clock },
     { id: 'realized' as const, label: t('realized'), icon: CheckCircle },
     { id: 'closed' as const, label: t('closedPositions') || 'Closed Positions', icon: Archive },
+    { id: 'lots' as const, label: t('taxLots') || 'Tax Lots', icon: DollarSign },
   ];
 
   // Calculate totals based on active tab
@@ -105,6 +131,12 @@ export function GainsClient({
     totalCostBasis = totalRealizedCostBasis;
     totalGainPercent = totalRealizedGainPercent;
     totalValue = totalRealizedGain + totalRealizedCostBasis;
+  } else if (activeTab === 'lots') {
+    // Tax lots - same as unrealized since these are open positions
+    totalGain = taxLots.reduce((sum, lot) => sum + lot.gain, 0);
+    totalCostBasis = taxLots.reduce((sum, lot) => sum + lot.totalCostBasis, 0);
+    totalValue = taxLots.reduce((sum, lot) => sum + lot.currentValue, 0);
+    totalGainPercent = totalCostBasis > 0 ? (totalGain / totalCostBasis) * 100 : 0;
   } else {
     // closed positions
     totalGain = totalClosedPositionGain;
@@ -132,7 +164,7 @@ export function GainsClient({
               <DollarSign className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              {activeTab === 'unrealized' ? t('currentValue') : t('totalProceeds')}
+              {activeTab === 'unrealized' || activeTab === 'lots' ? t('currentValue') : t('totalProceeds')}
             </span>
           </div>
           <span className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -214,6 +246,42 @@ export function GainsClient({
         </div>
       </div>
 
+      {/* Annualized Returns */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+            {t('ytdReturn') || 'YTD Return'}
+          </p>
+          <p className={cn(
+            'text-xl font-bold',
+            ytdReturn >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+          )}>
+            {ytdReturn >= 0 ? '+' : ''}{ytdReturn.toFixed(2)}%
+          </p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+            {t('annualizedReturn') || 'Annualized Return (CAGR)'}
+          </p>
+          <p className={cn(
+            'text-xl font-bold',
+            cagr >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+          )}>
+            {cagr >= 0 ? '+' : ''}{cagr.toFixed(2)}%
+          </p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+            {t('portfolioAge') || 'Portfolio Age'}
+          </p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">
+            {yearsSinceInception >= 1
+              ? `${yearsSinceInception.toFixed(1)} ${t('years') || 'years'}`
+              : `${Math.round(yearsSinceInception * 12)} ${t('months') || 'months'}`}
+          </p>
+        </div>
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
         {tabs.map((tab) => {
@@ -251,6 +319,9 @@ export function GainsClient({
           totalLongTerm={totalClosedPositionGainLongTerm}
           totalShortTerm={totalClosedPositionGainShortTerm}
         />
+      )}
+      {activeTab === 'lots' && (
+        <TaxLotsTable lots={taxLots} localeCode={localeCode} t={t} />
       )}
     </div>
   );
@@ -598,6 +669,161 @@ function ClosedPositionsTable({
                         ? (t('longTerm') || 'Long-term')
                         : (t('shortTerm') || 'Short-term')}
                     </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TaxLotsTable({
+  lots,
+  localeCode,
+  t,
+}: {
+  lots: TaxLot[];
+  localeCode: string;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  if (lots.length === 0) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center border border-gray-200 dark:border-gray-700">
+        <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+        <p className="text-gray-500 dark:text-gray-400">
+          {t('noTaxLots') || 'No tax lots yet'}
+        </p>
+        <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+          {t('taxLotsDesc') || 'Tax lots appear when you buy stocks'}
+        </p>
+      </div>
+    );
+  }
+
+  // Group lots by symbol for better readability
+  const lotsBySymbol = lots.reduce((acc, lot) => {
+    if (!acc[lot.symbol]) acc[lot.symbol] = [];
+    acc[lot.symbol].push(lot);
+    return acc;
+  }, {} as Record<string, TaxLot[]>);
+
+  return (
+    <div className="space-y-4">
+      {/* Summary cards for tax planning */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {t('longTermLots') || 'Long-term Lots (>1 year)'}
+          </p>
+          <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
+            {lots.filter(l => l.isLongTerm).length} {t('lots') || 'lots'}
+          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            {t('qualifyLowerRate') || 'Qualify for lower tax rate'}
+          </p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {t('shortTermLots') || 'Short-term Lots (<1 year)'}
+          </p>
+          <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
+            {lots.filter(l => !l.isLongTerm).length} {t('lots') || 'lots'}
+          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            {t('taxedOrdinaryIncome') || 'Taxed as ordinary income'}
+          </p>
+        </div>
+      </div>
+
+      {/* Tax Lots Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700/50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('symbol')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('acquired') || 'Acquired'}
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('shares')}
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('costPerShare') || 'Cost/Share'}
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('currentPrice') || 'Current'}
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('gain')}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {t('status') || 'Status'}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              {lots.map((lot) => (
+                <tr key={lot.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {lot.symbol}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[150px]">
+                      {lot.name}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {formatDate(lot.acquisitionDate)}
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {lot.holdingDays} {t('daysAgo') || 'days'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
+                    {formatNumber(lot.quantity, localeCode)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
+                    {formatCurrency(lot.costBasisPerShare, 'USD', localeCode)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-white">
+                    {formatCurrency(lot.currentPrice, 'USD', localeCode)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <div className={cn(
+                      'text-sm font-medium',
+                      lot.gain >= 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    )}>
+                      <div>
+                        {lot.gain >= 0 ? '+' : ''}
+                        {formatCurrency(lot.gain, 'USD', localeCode)}
+                      </div>
+                      <div className="text-xs opacity-75">
+                        ({lot.gainPercent >= 0 ? '+' : ''}{lot.gainPercent.toFixed(2)}%)
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {lot.isLongTerm ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                        {t('longTerm') || 'Long-term'}
+                      </span>
+                    ) : (
+                      <div>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                          {t('shortTerm') || 'Short-term'}
+                        </span>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {lot.daysUntilLongTerm} {t('daysToLongTerm') || 'days to L/T'}
+                        </div>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

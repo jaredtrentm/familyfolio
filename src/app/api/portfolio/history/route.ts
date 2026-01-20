@@ -36,82 +36,72 @@ function generateDatePoints(startDate: Date, endDate: Date, period: TimePeriod):
   const start = new Date(startDate);
   const end = new Date(endDate);
 
+  // Always include the start date as first point
+  points.push(new Date(start));
+
   switch (period) {
     case '1D':
       // Hourly points
       for (let d = new Date(start); d <= end; d.setHours(d.getHours() + 1)) {
-        points.push(new Date(d));
+        if (d > start) points.push(new Date(d));
       }
       break;
 
     case '1W':
       // Daily points
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        points.push(new Date(d));
+        if (d > start) points.push(new Date(d));
       }
       break;
 
     case '1M':
       // Every 2-3 days
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 2)) {
-        points.push(new Date(d));
+        if (d > start) points.push(new Date(d));
       }
       break;
 
     case '3M':
       // Weekly points
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
-        points.push(new Date(d));
+        if (d > start) points.push(new Date(d));
       }
       break;
 
     case 'YTD':
       // Weekly points for YTD to show better trend
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
-        points.push(new Date(d));
+        if (d > start) points.push(new Date(d));
       }
       break;
 
     case '1Y':
       // Monthly points - one per month
-      const currentMonth = end.getMonth();
-      const startMonth = start.getMonth();
-      const startYear = start.getFullYear();
-      const endYear = end.getFullYear();
-
-      for (let year = startYear; year <= endYear; year++) {
-        const monthStart = (year === startYear) ? startMonth : 0;
-        const monthEnd = (year === endYear) ? currentMonth : 11;
-
-        for (let month = monthStart; month <= monthEnd; month++) {
-          // Use mid-month for the data point
-          points.push(new Date(year, month, 15));
-        }
+      for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
+        if (d > start) points.push(new Date(d));
       }
       break;
 
     case '5Y':
-      // Quarterly points
-      for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 3)) {
-        points.push(new Date(d));
+      // Monthly points for 5Y (better granularity than quarterly)
+      for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
+        if (d > start) points.push(new Date(d));
       }
       break;
 
     case 'MAX':
     default:
-      // Yearly points
-      for (let d = new Date(start); d <= end; d.setFullYear(d.getFullYear() + 1)) {
-        points.push(new Date(d));
-      }
-      // Always include current date
-      if (points.length === 0 || points[points.length - 1].getTime() < end.getTime() - 30 * 24 * 60 * 60 * 1000) {
-        points.push(new Date(end));
+      // Monthly points for MAX period (much better than yearly!)
+      // This ensures we capture value changes over long periods
+      for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
+        if (d > start) points.push(new Date(d));
       }
       break;
   }
 
-  // Always include the end date if not already there
-  if (points.length > 0 && points[points.length - 1].getTime() < end.getTime() - 24 * 60 * 60 * 1000) {
+  // Always include the end date if not already close to it
+  const lastPoint = points[points.length - 1];
+  if (lastPoint && end.getTime() - lastPoint.getTime() > 24 * 60 * 60 * 1000) {
     points.push(new Date(end));
   }
 
@@ -159,7 +149,7 @@ interface ChartResult {
   };
 }
 
-// Fetch historical prices for a symbol
+// Fetch historical prices for a symbol with buffer for better data coverage
 async function getHistoricalPrices(
   symbol: string,
   startDate: Date,
@@ -168,8 +158,12 @@ async function getHistoricalPrices(
   const priceMap = new Map<string, number>();
 
   try {
+    // Add 7 day buffer before start date to ensure we have data for interpolation
+    const bufferedStart = new Date(startDate);
+    bufferedStart.setDate(bufferedStart.getDate() - 7);
+
     const result = await yahooFinance.chart(symbol, {
-      period1: startDate,
+      period1: bufferedStart,
       period2: endDate,
       interval: '1d',
     }) as ChartResult | null;
@@ -188,6 +182,29 @@ async function getHistoricalPrices(
   }
 
   return priceMap;
+}
+
+// Find the closest available price for a given date
+function findClosestPrice(
+  priceMap: Map<string, number>,
+  dateKey: string,
+  maxDaysBack: number = 7
+): number {
+  // Try exact match first
+  const exactPrice = priceMap.get(dateKey);
+  if (exactPrice) return exactPrice;
+
+  // Look backwards for the closest available date
+  const targetDate = new Date(dateKey);
+  for (let i = 1; i <= maxDaysBack; i++) {
+    const checkDate = new Date(targetDate);
+    checkDate.setDate(checkDate.getDate() - i);
+    const checkKey = checkDate.toISOString().split('T')[0];
+    const price = priceMap.get(checkKey);
+    if (price) return price;
+  }
+
+  return 0; // No price found
 }
 
 export async function GET(request: NextRequest) {
@@ -216,16 +233,26 @@ export async function GET(request: NextRequest) {
 
     // Calculate date range
     const firstTxDate = new Date(Math.min(...transactions.map((tx) => tx.date.getTime())));
-    const effectiveStartDate = firstTxDate > startDate ? firstTxDate : startDate;
     const now = new Date();
+
+    // For MAX period, always start from first transaction
+    // For other periods, use the later of period start or first transaction
+    const effectiveStartDate = period === 'MAX'
+      ? firstTxDate
+      : (firstTxDate > startDate ? firstTxDate : startDate);
 
     // Generate date points based on period
     const datePoints = generateDatePoints(effectiveStartDate, now, period);
 
-    // Fetch historical prices for each symbol
+    // Fetch historical prices for all symbols in parallel for better performance
     const historicalPrices = new Map<string, Map<string, number>>();
-    for (const symbol of symbols) {
+    const pricePromises = symbols.map(async (symbol) => {
       const prices = await getHistoricalPrices(symbol, effectiveStartDate, now);
+      return { symbol, prices };
+    });
+
+    const priceResults = await Promise.all(pricePromises);
+    for (const { symbol, prices } of priceResults) {
       historicalPrices.set(symbol, prices);
     }
 
@@ -277,29 +304,21 @@ export async function GET(request: NextRequest) {
 
       for (const [symbol, holding] of holdingsMap) {
         const symbolHistory = historicalPrices.get(symbol);
-        let price: number;
+        let price: number = 0;
 
-        // Try to find historical price for this date (or closest date before)
+        // Use the improved findClosestPrice function
         if (symbolHistory && symbolHistory.size > 0) {
-          price = symbolHistory.get(dateKey) || 0;
-
-          // If no exact match, find closest earlier date
-          if (price === 0) {
-            const sortedDates = Array.from(symbolHistory.keys()).sort();
-            for (const d of sortedDates.reverse()) {
-              if (d <= dateKey) {
-                price = symbolHistory.get(d) || 0;
-                break;
-              }
-            }
-          }
-        } else {
-          price = 0;
+          price = findClosestPrice(symbolHistory, dateKey, 14); // Look back up to 14 days
         }
 
-        // Fall back to current price or avg cost
+        // Fall back to current cached price
         if (price === 0) {
-          price = currentPriceMap.get(symbol) || holding.costBasis / holding.quantity;
+          price = currentPriceMap.get(symbol) || 0;
+        }
+
+        // Last resort: use average cost from holdings
+        if (price === 0 && holding.quantity > 0) {
+          price = holding.costBasis / holding.quantity;
         }
 
         totalValue += holding.quantity * price;
