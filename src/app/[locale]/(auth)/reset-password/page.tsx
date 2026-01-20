@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, Suspense } from 'react';
 import { useTranslations } from 'next-intl';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, KeyRound, CheckCircle, AlertCircle, Check, X } from 'lucide-react';
+import { ArrowLeft, KeyRound, CheckCircle, AlertCircle, Check, X, Loader2 } from 'lucide-react';
 
 // Password strength requirements (same as register)
 const PASSWORD_REQUIREMENTS = {
@@ -30,7 +30,25 @@ function isPasswordValid(password: string) {
   return Object.values(strength).every(Boolean);
 }
 
+function ResetPasswordLoading() {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+      <div className="flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    </div>
+  );
+}
+
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordLoading />}>
+      <ResetPasswordContent />
+    </Suspense>
+  );
+}
+
+function ResetPasswordContent() {
   const t = useTranslations('auth');
   const tCommon = useTranslations('common');
   const params = useParams();
