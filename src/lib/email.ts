@@ -2,7 +2,9 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = process.env.FROM_EMAIL || 'FamilyFolio <noreply@absolutenorthdigital.com>';
+// Use verified domain or Resend test sender
+// To use your own domain, verify it in Resend dashboard and set FROM_EMAIL env var
+const FROM_EMAIL = process.env.FROM_EMAIL || 'FamilyFolio <onboarding@resend.dev>';
 
 export async function sendPasswordResetEmail(
   email: string,
@@ -66,9 +68,9 @@ export async function sendPasswordResetEmail(
     `;
 
   try {
-    // In development without API key, log the URL
-    if (!process.env.RESEND_API_KEY || process.env.NODE_ENV === 'development') {
-      console.log('[Email Service] Would send password reset to:', email);
+    // Only skip if no API key is set
+    if (!process.env.RESEND_API_KEY) {
+      console.log('[Email Service] No RESEND_API_KEY set. Would send password reset to:', email);
       console.log('[Email Service] Reset URL:', resetUrl);
       return { success: true };
     }
