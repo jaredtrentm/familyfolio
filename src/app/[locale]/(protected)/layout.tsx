@@ -1,6 +1,7 @@
 import { setRequestLocale } from 'next-intl/server';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
+import { Footer } from '@/components/layout/Footer';
 
 export default async function ProtectedLayout({
   children,
@@ -27,6 +28,7 @@ export default async function ProtectedLayout({
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
           {children}
+          <Footer />
         </main>
       </div>
     </div>
