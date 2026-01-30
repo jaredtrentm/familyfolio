@@ -6,17 +6,17 @@ const OTHER_APPS = [
   {
     name: "NextNest",
     description: "Life Decisions",
-    url: "https://nextnest.app",
+    url: "https://nextnest-production-9abe.up.railway.app",
   },
   {
     name: "ThesisTracks",
     description: "Investment Research",
-    url: "https://thesistracks.com",
+    url: "https://convictiqn-production.up.railway.app",
   },
   {
     name: "PropertyPro",
     description: "Real Estate Analysis",
-    url: "https://propertypro.app",
+    url: "https://propertypro-production-1490.up.railway.app",
   },
 ];
 

@@ -9,10 +9,13 @@ const intlMiddleware = createMiddleware({
 });
 
 // Paths that don't require authentication
-const publicPaths = ['/login', '/register'];
+const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password'];
 
 // Paths that should skip locale handling
 const apiPaths = ['/api'];
+
+// Admin paths - requires admin role
+const adminPaths = ['/admin'];
 
 // Security headers to apply to all responses
 function addSecurityHeaders(response: NextResponse): NextResponse {
@@ -49,6 +52,7 @@ export default async function middleware(request: NextRequest) {
   // Check authentication for protected routes
   const token = request.cookies.get('auth-token')?.value;
   const isPublicPath = publicPaths.some((path) => pathname.includes(path));
+  const isAdminPath = adminPaths.some((path) => pathname.includes(path));
 
   // Extract locale from pathname
   const localeMatch = pathname.match(/^\/(en|zh)(\/|$)/);
@@ -65,6 +69,9 @@ export default async function middleware(request: NextRequest) {
     const dashboardUrl = new URL(`/${locale}/dashboard`, request.url);
     return NextResponse.redirect(dashboardUrl);
   }
+
+  // Admin route protection is handled at page level for simplicity
+  // The admin layout will check if user is admin
 
   // Add security headers to all responses
   return addSecurityHeaders(response as NextResponse);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { sendPasswordResetEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,24 +48,12 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const resetUrl = `${baseUrl}/${user.locale}/reset-password?token=${resetToken}&email=${encodeURIComponent(user.email)}`;
 
-    // Log reset URL for development (in production, send email)
-    console.log('[Password Reset] Reset URL for', user.email, ':', resetUrl);
+    // Send password reset email
+    const emailResult = await sendPasswordResetEmail(user.email, resetUrl, user.locale);
 
-    // TODO: Send email with reset link
-    // For now, we'll log the URL. In production, integrate with an email service:
-    // - Resend (recommended): npm install resend
-    // - SendGrid: npm install @sendgrid/mail
-    // - Nodemailer with SMTP
-    //
-    // Example with Resend:
-    // import { Resend } from 'resend';
-    // const resend = new Resend(process.env.RESEND_API_KEY);
-    // await resend.emails.send({
-    //   from: 'FamilyFolio <noreply@yourdomain.com>',
-    //   to: user.email,
-    //   subject: 'Reset your password',
-    //   html: `<p>Click <a href="${resetUrl}">here</a> to reset your password. This link expires in 1 hour.</p>`,
-    // });
+    if (!emailResult.success) {
+      console.error('[Forgot Password API] Failed to send email:', emailResult.error);
+    }
 
     return NextResponse.json({
       message: 'If an account exists with this email, you will receive a password reset link',

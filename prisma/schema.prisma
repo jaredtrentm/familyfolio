@@ -17,6 +17,7 @@ model User {
   name         String
   pin          String?  // optional 4-digit PIN for quick access
   locale       String   @default("en") // en or zh
+  role         String   @default("user") // user or admin
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
