@@ -31,6 +31,7 @@ model User {
   chatMessages ChatMessage[]
   accounts     Account[]
   links        Link[]
+  plaidConnections PlaidConnection[]
 
   // Share requests
   sentShareRequests     ShareRequest[] @relation("SentShareRequests")
@@ -50,6 +51,7 @@ model Account {
   user         User          @relation(fields: [userId], references: [id])
   transactions Transaction[]
   dataUploads  DataUpload[]
+  plaidAccounts PlaidAccount[]
 
   @@index([userId])
 }
@@ -195,4 +197,54 @@ model ShareRequest {
   @@index([requesterId])
   @@index([targetId])
   @@index([status])
+}
+
+// Plaid integration - bank connection
+model PlaidConnection {
+  id              String   @id @default(cuid())
+  userId          String
+  accessToken     String   // encrypted
+  itemId          String   @unique
+  institutionId   String?
+  institutionName String
+  status          String   @default("active") // active, error, pending_expiration
+  consentExpiresAt DateTime?
+  lastSyncedAt    DateTime?
+  errorCode       String?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accounts        PlaidAccount[]
+
+  @@index([userId])
+  @@index([itemId])
+}
+
+// Plaid accounts within a connection
+model PlaidAccount {
+  id             String   @id @default(cuid())
+  connectionId   String
+  plaidAccountId String   @unique
+  name           String
+  officialName   String?
+  type           String   // investment, depository, credit, loan, brokerage
+  subtype        String?
+  mask           String?  // Last 4 digits
+  isActive       Boolean  @default(true)
+
+  // Link to local account (optional - user can map Plaid account to their Account)
+  localAccountId String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  connection     PlaidConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  localAccount   Account?        @relation(fields: [localAccountId], references: [id])
+
+  @@index([connectionId])
+  @@index([plaidAccountId])
 }

@@ -132,6 +132,19 @@ function getImageMimeType(fileType: string): 'image/jpeg' | 'image/png' | 'image
   return mimeMap[fileType] || null;
 }
 
+// Extract text content from PDF
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  try {
+    // Dynamic import to avoid bundling issues
+    const pdfParse = (await import('pdf-parse')).default;
+    const data = await pdfParse(buffer);
+    return data.text;
+  } catch (error) {
+    console.error('PDF parsing error:', error);
+    return '';
+  }
+}
+
 async function parseWithAI(content: string, fileType: string): Promise<ParsedTransaction[]> {
   if (!process.env.ANTHROPIC_API_KEY) {
     return [];
@@ -279,9 +292,16 @@ Return ONLY the JSON array, nothing else. If no transactions found, return [].`,
           }
         }
       } else if (fileType === 'pdf') {
-        // PDFs are not directly supported by Claude Vision API
-        // Would need to convert to images first
-        throw new Error('PDF files are not yet supported. Please convert to images or CSV.');
+        // Parse PDF and extract text
+        const arrayBuffer = await file.arrayBuffer();
+        const pdfText = await extractPdfText(Buffer.from(arrayBuffer));
+
+        if (pdfText && pdfText.trim().length > 0) {
+          // Use AI to parse the extracted text
+          transactions = await parseWithAI(pdfText, 'PDF brokerage statement');
+        } else {
+          throw new Error('Could not extract text from PDF. The PDF may be image-based - please try uploading as an image instead.');
+        }
       }
 
       // Save transactions to database and check for duplicates
