@@ -141,6 +141,18 @@ model StockCache {
   sector       String?
   industry     String?
   isEtf        Boolean  @default(false)
+
+  // Enhanced watchlist data
+  fiftyTwoWeekHigh   Float?
+  fiftyTwoWeekLow    Float?
+  peRatio            Float?
+  dividendYield      Float?
+  volume             Float?
+  averageVolume      Float?
+  targetPrice        Float?
+  earningsDate       DateTime?
+  beta               Float?
+
   updatedAt    DateTime @updatedAt
 
   // ETF holdings relation

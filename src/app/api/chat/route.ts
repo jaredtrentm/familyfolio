@@ -73,6 +73,41 @@ export async function POST(request: NextRequest) {
       orderBy: { date: 'desc' },
     });
 
+    // Get watchlist with stock data
+    const watchlistItems = await prisma.watchlistItem.findMany({
+      where: { userId: session.id },
+      orderBy: { addedAt: 'desc' },
+    });
+    const watchlistSymbols = watchlistItems.map(w => w.symbol);
+    const watchlistStockData = watchlistSymbols.length > 0
+      ? await prisma.stockCache.findMany({
+          where: { symbol: { in: watchlistSymbols } },
+        })
+      : [];
+    const watchlistStockMap = new Map(watchlistStockData.map(s => [s.symbol, s]));
+
+    // Get price alerts
+    const priceAlerts = await prisma.priceAlert.findMany({
+      where: { userId: session.id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Get accounts with cash balances
+    const accounts = await prisma.account.findMany({
+      where: { userId: session.id },
+      orderBy: { name: 'asc' },
+    });
+
+    // Get rebalancing targets
+    const rebalanceTargets = await prisma.rebalanceTarget.findMany({
+      where: { userId: session.id },
+    });
+
+    // Get user preferences
+    const userPreferences = await prisma.userPreferences.findUnique({
+      where: { userId: session.id },
+    });
+
     // Calculate current holdings and closed positions using utility
     const portfolioTx: PortfolioTransaction[] = transactions.map(tx => ({
       id: tx.id,
@@ -197,6 +232,41 @@ ${(() => {
   }).join('\n\n');
 })() || 'No transactions'}
 
+=== WATCHLIST ===
+${watchlistItems.length > 0
+  ? watchlistItems.map(item => {
+      const stock = watchlistStockMap.get(item.symbol);
+      const priceInfo = stock?.currentPrice ? `$${stock.currentPrice.toFixed(2)}` : 'N/A';
+      const changeInfo = stock?.dayChangePercent ? `${stock.dayChangePercent >= 0 ? '+' : ''}${stock.dayChangePercent.toFixed(2)}%` : '';
+      const peInfo = stock?.peRatio ? `P/E: ${stock.peRatio.toFixed(2)}` : '';
+      const targetInfo = stock?.targetPrice ? `Target: $${stock.targetPrice.toFixed(2)}` : '';
+      const notes = item.notes ? ` (Notes: ${item.notes})` : '';
+      return `${item.symbol}: ${priceInfo} ${changeInfo} | ${peInfo} ${targetInfo}${notes}`;
+    }).join('\n')
+  : 'No stocks in watchlist'}
+
+=== PRICE ALERTS ===
+${priceAlerts.length > 0
+  ? priceAlerts.map(alert => {
+      const status = alert.isActive ? (alert.triggeredAt ? 'TRIGGERED' : 'ACTIVE') : 'INACTIVE';
+      return `${alert.symbol}: ${alert.condition} $${alert.targetPrice.toFixed(2)} [${status}]`;
+    }).join('\n')
+  : 'No price alerts set'}
+
+=== ACCOUNTS (Cash Balances) ===
+${accounts.length > 0
+  ? accounts.map(acc => `${acc.name}: $${acc.cashBalance.toFixed(2)}${acc.isShared ? ' (Shared)' : ''}`).join('\n')
+  : 'No accounts'}
+Total Cash: $${accounts.reduce((sum, acc) => sum + acc.cashBalance, 0).toFixed(2)}
+
+=== REBALANCING TARGETS ===
+${rebalanceTargets.length > 0
+  ? rebalanceTargets.map(target => `${target.targetType} - ${target.identifier}: ${target.targetPercent.toFixed(1)}%`).join('\n')
+  : 'No rebalancing targets set'}
+
+=== USER PREFERENCES ===
+- Cost Basis Method: ${userPreferences?.costBasisMethod || 'FIFO'}
+
 === NOTES ===
 - Prices marked as "market" are from stock price feeds
 - Prices marked as "estimated (avg cost)" mean the market price isn't available yet
@@ -204,13 +274,18 @@ ${(() => {
 - "Closed Positions" are stocks the user fully sold - use this data for historical questions
 - Long-term gains (>1 year holding) are taxed differently than short-term gains
 - ALL TRANSACTIONS include dates - use these for calculating holding periods and tax implications
-- When generating gains/loss reports, use FIFO (First In, First Out) - oldest shares are sold first
+- When generating gains/loss reports, use the user's preferred cost basis method (${userPreferences?.costBasisMethod || 'FIFO'})
+- WATCHLIST shows stocks the user is watching but hasn't purchased yet
+- PRICE ALERTS notify the user when a stock hits a target price
+- ACCOUNTS show cash balances available for investing
 
 Provide helpful, accurate information about their portfolio. Be concise but informative.
 If asked about specific stocks (current or previously held), use the portfolio data above.
+If asked about the watchlist, use the WATCHLIST section with current prices and analyst targets.
 If asked about past trades or realized gains, refer to the Closed Positions section and transaction dates.
 If asked to generate a gains/loss report, use the transaction dates to determine acquisition dates and holding periods.
 If asked about recommendations, provide general guidance but remind them to consult a financial advisor.
+If asked about rebalancing, use the REBALANCING TARGETS section to show target allocations.
 Never reveal data from other users - you can only see this user's portfolio.`;
 
       try {

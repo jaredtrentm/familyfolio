@@ -24,20 +24,44 @@ async function fetchAndCacheStockData(symbol: string) {
         regularMarketChangePercent?: number;
         regularMarketPreviousClose?: number;
         marketCap?: number;
+        fiftyTwoWeekHigh?: number;
+        fiftyTwoWeekLow?: number;
+        trailingPE?: number;
+        dividendYield?: number;
+        regularMarketVolume?: number;
+        averageDailyVolume3Month?: number;
       };
 
-      // Try to get sector info
+      // Try to get sector info and additional data
       let sector: string | null = null;
       let industry: string | null = null;
+      let targetPrice: number | null = null;
+      let earningsDate: Date | null = null;
+      let beta: number | null = null;
 
       try {
         const summary = await yahooFinance.quoteSummary(normalizedSymbol, {
-          modules: ['assetProfile'],
+          modules: ['assetProfile', 'financialData', 'calendarEvents', 'defaultKeyStatistics'],
         });
-        const summaryData = summary as { assetProfile?: { sector?: string; industry?: string } } | null;
+        const summaryData = summary as {
+          assetProfile?: { sector?: string; industry?: string };
+          financialData?: { targetMeanPrice?: number };
+          calendarEvents?: { earnings?: { earningsDate?: Date[] } };
+          defaultKeyStatistics?: { beta?: number };
+        } | null;
+
         if (summaryData?.assetProfile) {
           sector = summaryData.assetProfile.sector || null;
           industry = summaryData.assetProfile.industry || null;
+        }
+        if (summaryData?.financialData?.targetMeanPrice) {
+          targetPrice = summaryData.financialData.targetMeanPrice;
+        }
+        if (summaryData?.calendarEvents?.earnings?.earningsDate?.[0]) {
+          earningsDate = new Date(summaryData.calendarEvents.earnings.earningsDate[0]);
+        }
+        if (summaryData?.defaultKeyStatistics?.beta) {
+          beta = summaryData.defaultKeyStatistics.beta;
         }
       } catch (profileError) {
         console.log(`[Watchlist API] Could not fetch profile for ${normalizedSymbol}:`, profileError instanceof Error ? profileError.message : 'Unknown');
@@ -55,6 +79,15 @@ async function fetchAndCacheStockData(symbol: string) {
           marketCap: q.marketCap || null,
           sector,
           industry,
+          fiftyTwoWeekHigh: q.fiftyTwoWeekHigh || null,
+          fiftyTwoWeekLow: q.fiftyTwoWeekLow || null,
+          peRatio: q.trailingPE || null,
+          dividendYield: q.dividendYield ? q.dividendYield * 100 : null, // Convert to percentage
+          volume: q.regularMarketVolume || null,
+          averageVolume: q.averageDailyVolume3Month || null,
+          targetPrice,
+          earningsDate,
+          beta,
         },
         create: {
           symbol: normalizedSymbol,
@@ -66,10 +99,19 @@ async function fetchAndCacheStockData(symbol: string) {
           marketCap: q.marketCap || null,
           sector,
           industry,
+          fiftyTwoWeekHigh: q.fiftyTwoWeekHigh || null,
+          fiftyTwoWeekLow: q.fiftyTwoWeekLow || null,
+          peRatio: q.trailingPE || null,
+          dividendYield: q.dividendYield ? q.dividendYield * 100 : null,
+          volume: q.regularMarketVolume || null,
+          averageVolume: q.averageDailyVolume3Month || null,
+          targetPrice,
+          earningsDate,
+          beta,
         },
       });
 
-      console.log(`[Watchlist API] Cached ${normalizedSymbol}: price=$${cached.currentPrice}, sector=${cached.sector}`);
+      console.log(`[Watchlist API] Cached ${normalizedSymbol}: price=$${cached.currentPrice}, PE=${cached.peRatio}, target=$${cached.targetPrice}`);
       return cached;
     }
   } catch (error) {
@@ -107,6 +149,16 @@ export async function GET() {
         dayChange: true,
         dayChangePercent: true,
         sector: true,
+        marketCap: true,
+        fiftyTwoWeekHigh: true,
+        fiftyTwoWeekLow: true,
+        peRatio: true,
+        dividendYield: true,
+        volume: true,
+        averageVolume: true,
+        targetPrice: true,
+        earningsDate: true,
+        beta: true,
         updatedAt: true,
       },
     });
@@ -138,6 +190,16 @@ export async function GET() {
           dayChange: true,
           dayChangePercent: true,
           sector: true,
+          marketCap: true,
+          fiftyTwoWeekHigh: true,
+          fiftyTwoWeekLow: true,
+          peRatio: true,
+          dividendYield: true,
+          volume: true,
+          averageVolume: true,
+          targetPrice: true,
+          earningsDate: true,
+          beta: true,
           updatedAt: true,
         },
       });
@@ -156,6 +218,16 @@ export async function GET() {
           dayChange: stock?.dayChange || null,
           dayChangePercent: stock?.dayChangePercent || null,
           sector: stock?.sector || null,
+          marketCap: stock?.marketCap || null,
+          fiftyTwoWeekHigh: stock?.fiftyTwoWeekHigh || null,
+          fiftyTwoWeekLow: stock?.fiftyTwoWeekLow || null,
+          peRatio: stock?.peRatio || null,
+          dividendYield: stock?.dividendYield || null,
+          volume: stock?.volume || null,
+          averageVolume: stock?.averageVolume || null,
+          targetPrice: stock?.targetPrice || null,
+          earningsDate: stock?.earningsDate?.toISOString() || null,
+          beta: stock?.beta || null,
         };
       }),
     });
