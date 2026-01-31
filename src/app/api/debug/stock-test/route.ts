@@ -60,44 +60,42 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Test 2: Sina Finance test (China fallback)
+    // Test 2: Finnhub test (fallback provider)
     try {
-      console.log('[Debug] Testing Sina Finance...');
-      const startTime = Date.now();
-      const sinaSymbol = `gb_${symbol.toLowerCase()}`;
-      const url = `https://hq.sinajs.cn/list=${sinaSymbol}`;
+      const finnhubKey = process.env.FINNHUB_API_KEY;
+      if (!finnhubKey) {
+        results.finnhubTest = {
+          success: false,
+          error: 'No FINNHUB_API_KEY configured',
+          hint: 'Get a free key at https://finnhub.io/',
+        };
+      } else {
+        console.log('[Debug] Testing Finnhub...');
+        const startTime = Date.now();
+        const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubKey}`;
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-      });
-      clearTimeout(timeoutId);
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
 
-      const text = await response.text();
-      const duration = Date.now() - startTime;
+        const data = await response.json();
+        const duration = Date.now() - startTime;
 
-      // Parse Sina response
-      const match = text.match(/="([^"]+)"/);
-      const parts = match?.[1]?.split(',') || [];
-
-      results.sinaTest = {
-        success: parts.length > 3 && parts[1] !== '',
-        duration: `${duration}ms`,
-        rawResponse: text.substring(0, 200),
-        parsed: parts.length > 3 ? {
-          name: parts[0],
-          price: parts[1],
-          change: parts[2],
-          changePercent: parts[3],
-        } : null,
-      };
+        results.finnhubTest = {
+          success: data && data.c > 0,
+          duration: `${duration}ms`,
+          data: data ? {
+            price: data.c,
+            change: data.d,
+            changePercent: data.dp,
+            previousClose: data.pc,
+          } : null,
+        };
+      }
     } catch (error) {
-      results.sinaTest = {
+      results.finnhubTest = {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };

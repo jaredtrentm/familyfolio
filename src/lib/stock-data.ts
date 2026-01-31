@@ -199,63 +199,109 @@ async function fetchFromYahoo(symbol: string): Promise<StockQuote | null> {
 }
 
 /**
- * Fetch stock data from Sina Finance (works in China)
- * Format: US stocks use "gb_" prefix (e.g., gb_aapl)
+ * Fetch stock data from Finnhub (works globally, including China)
+ * Free tier: 60 calls/minute
+ * Requires FINNHUB_API_KEY environment variable
  */
-async function fetchFromSina(symbol: string): Promise<StockQuote | null> {
+async function fetchFromFinnhub(symbol: string): Promise<StockQuote | null> {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey) {
+    console.log('[Stock Data] Finnhub: No API key configured (FINNHUB_API_KEY)');
+    return null;
+  }
+
   const normalizedSymbol = symbol.toUpperCase().trim();
 
-  // Sina uses lowercase with gb_ prefix for US stocks
-  const sinaSymbol = `gb_${normalizedSymbol.toLowerCase()}`;
-  const url = `https://hq.sinajs.cn/list=${sinaSymbol}`;
-
   try {
-    const response = await fetchWithTimeout(url, 10000);
-    const text = await response.text();
+    // Fetch quote data
+    const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${normalizedSymbol}&token=${apiKey}`;
+    const quoteResponse = await fetchWithTimeout(quoteUrl, 10000);
 
-    // Parse Sina response format:
-    // var hq_str_gb_aapl="Apple Inc,178.72,1.23,0.69,178.50,179.00,176.00,45000000,...";
-    const match = text.match(/="([^"]+)"/);
-    if (!match || !match[1]) {
-      console.log(`[Stock Data] Sina: No data for ${normalizedSymbol}`);
+    if (!quoteResponse.ok) {
+      console.log(`[Stock Data] Finnhub quote returned ${quoteResponse.status}`);
       return null;
     }
 
-    const parts = match[1].split(',');
-    if (parts.length < 8) {
-      console.log(`[Stock Data] Sina: Invalid data format for ${normalizedSymbol}`);
+    const quoteData = await quoteResponse.json();
+
+    // Finnhub quote format: { c: current, d: change, dp: change%, h: high, l: low, o: open, pc: prevClose, t: timestamp }
+    if (!quoteData || !quoteData.c || quoteData.c === 0) {
+      console.log(`[Stock Data] Finnhub: No price data for ${normalizedSymbol}`);
       return null;
     }
 
-    // Sina format for US stocks:
-    // 0: Name, 1: Current Price, 2: Change, 3: Change %, 4: Time, 5: Open, 6: High, 7: Low,
-    // 8: 52wk High, 9: 52wk Low, 10: Volume, 11: Avg Volume, 12: Market Cap, 13: P/E, ...
-    const currentPrice = parseFloat(parts[1]) || 0;
-    const dayChange = parseFloat(parts[2]) || 0;
-    const dayChangePercent = parseFloat(parts[3]) || 0;
+    // Fetch company profile for name and sector
+    let name = normalizedSymbol;
+    let sector: string | null = null;
+    let industry: string | null = null;
+    let marketCap: number | null = null;
+    let beta: number | null = null;
+
+    try {
+      const profileUrl = `https://finnhub.io/api/v1/stock/profile2?symbol=${normalizedSymbol}&token=${apiKey}`;
+      const profileResponse = await fetchWithTimeout(profileUrl, 8000);
+
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json();
+        if (profileData) {
+          name = profileData.name || normalizedSymbol;
+          sector = profileData.finnhubIndustry || null;
+          industry = profileData.finnhubIndustry || null;
+          marketCap = profileData.marketCapitalization ? profileData.marketCapitalization * 1000000 : null;
+        }
+      }
+    } catch (profileError) {
+      console.log(`[Stock Data] Finnhub profile failed for ${normalizedSymbol}:`,
+        profileError instanceof Error ? profileError.message : 'Unknown');
+    }
+
+    // Fetch basic financials for P/E, 52-week range, beta
+    let peRatio: number | null = null;
+    let fiftyTwoWeekHigh: number | null = null;
+    let fiftyTwoWeekLow: number | null = null;
+    let dividendYield: number | null = null;
+
+    try {
+      const metricsUrl = `https://finnhub.io/api/v1/stock/metric?symbol=${normalizedSymbol}&metric=all&token=${apiKey}`;
+      const metricsResponse = await fetchWithTimeout(metricsUrl, 8000);
+
+      if (metricsResponse.ok) {
+        const metricsData = await metricsResponse.json();
+        if (metricsData?.metric) {
+          peRatio = metricsData.metric.peBasicExclExtraTTM || metricsData.metric.peTTM || null;
+          fiftyTwoWeekHigh = metricsData.metric['52WeekHigh'] || null;
+          fiftyTwoWeekLow = metricsData.metric['52WeekLow'] || null;
+          dividendYield = metricsData.metric.dividendYieldIndicatedAnnual || null;
+          beta = metricsData.metric.beta || null;
+        }
+      }
+    } catch (metricsError) {
+      console.log(`[Stock Data] Finnhub metrics failed for ${normalizedSymbol}:`,
+        metricsError instanceof Error ? metricsError.message : 'Unknown');
+    }
 
     return {
       symbol: normalizedSymbol,
-      name: parts[0] || normalizedSymbol,
-      currentPrice,
-      dayChange,
-      dayChangePercent,
-      previousClose: currentPrice - dayChange,
-      marketCap: parts[12] ? parseFloat(parts[12]) * 1000000 : null, // Sina reports in millions
-      sector: null, // Sina doesn't provide sector
-      industry: null,
-      fiftyTwoWeekHigh: parts[8] ? parseFloat(parts[8]) : null,
-      fiftyTwoWeekLow: parts[9] ? parseFloat(parts[9]) : null,
-      peRatio: parts[13] ? parseFloat(parts[13]) : null,
-      dividendYield: null, // Sina doesn't provide in basic quote
-      volume: parts[10] ? parseFloat(parts[10]) : null,
-      averageVolume: parts[11] ? parseFloat(parts[11]) : null,
-      targetPrice: null, // Sina doesn't provide analyst targets
+      name,
+      currentPrice: quoteData.c,
+      dayChange: quoteData.d || 0,
+      dayChangePercent: quoteData.dp || 0,
+      previousClose: quoteData.pc || 0,
+      marketCap,
+      sector,
+      industry,
+      fiftyTwoWeekHigh,
+      fiftyTwoWeekLow,
+      peRatio,
+      dividendYield,
+      volume: null, // Finnhub doesn't provide volume in basic quote
+      averageVolume: null,
+      targetPrice: null, // Would need separate endpoint
       earningsDate: null,
-      beta: null,
+      beta,
     };
   } catch (error) {
-    console.log(`[Stock Data] Sina fetch failed for ${normalizedSymbol}:`,
+    console.log(`[Stock Data] Finnhub fetch failed for ${normalizedSymbol}:`,
       error instanceof Error ? error.message : 'Unknown');
     return null;
   }
@@ -335,11 +381,11 @@ export async function fetchStockData(symbol: string): Promise<StockQuote | null>
   const providers = useYahooFirst
     ? [
         { name: 'Yahoo', fn: () => fetchFromYahoo(normalizedSymbol) },
-        { name: 'Sina', fn: () => fetchFromSina(normalizedSymbol) },
+        { name: 'Finnhub', fn: () => fetchFromFinnhub(normalizedSymbol) },
         { name: 'AlphaVantage', fn: () => fetchFromAlphaVantage(normalizedSymbol) },
       ]
     : [
-        { name: 'Sina', fn: () => fetchFromSina(normalizedSymbol) },
+        { name: 'Finnhub', fn: () => fetchFromFinnhub(normalizedSymbol) },
         { name: 'Yahoo', fn: () => fetchFromYahoo(normalizedSymbol) },
         { name: 'AlphaVantage', fn: () => fetchFromAlphaVantage(normalizedSymbol) },
       ];
@@ -414,13 +460,23 @@ export async function fetchMultipleStocks(symbols: string[]): Promise<Map<string
 }
 
 /**
- * Check if we should use the China-friendly provider
- * This can be expanded to detect user location
+ * Check if we should use the fallback provider first
+ * This can be expanded to detect user location or persistent failures
  */
-export function shouldUseChinaProvider(): boolean {
+export function shouldUseFallbackProvider(): boolean {
   // Can be enhanced to check:
   // 1. Request headers for location hints
   // 2. User preference stored in database
   // 3. Environment variable for deployment region
   return yahooFailureCount >= MAX_FAILURES_BEFORE_SWITCH;
+}
+
+/**
+ * Get current provider status for debugging
+ */
+export function getProviderStatus(): { yahooFailures: number; usingFallback: boolean } {
+  return {
+    yahooFailures: yahooFailureCount,
+    usingFallback: yahooFailureCount >= MAX_FAILURES_BEFORE_SWITCH,
+  };
 }
