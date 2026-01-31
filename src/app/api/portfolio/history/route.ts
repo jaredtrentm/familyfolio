@@ -3,7 +3,9 @@ import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
 import YahooFinance from 'yahoo-finance2';
 
-const yahooFinance = new YahooFinance();
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey'],
+});
 
 // Retry with exponential backoff
 async function retryWithBackoff<T>(

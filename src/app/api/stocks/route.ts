@@ -4,7 +4,9 @@ import prisma from '@/lib/db';
 import YahooFinance from 'yahoo-finance2';
 import Anthropic from '@anthropic-ai/sdk';
 
-const yahooFinance = new YahooFinance();
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey'],
+});
 
 // Cache duration in minutes
 const CACHE_DURATION = 15;

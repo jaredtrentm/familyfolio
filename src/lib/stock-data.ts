@@ -11,7 +11,10 @@
 
 import YahooFinance from 'yahoo-finance2';
 
-const yahooFinance = new YahooFinance();
+// Configure Yahoo Finance with proper options
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey'],
+});
 
 // Track failures to auto-switch providers
 let yahooFailureCount = 0;
