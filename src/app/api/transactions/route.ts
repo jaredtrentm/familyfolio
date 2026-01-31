@@ -89,12 +89,49 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const unclaimed = searchParams.get('unclaimed') === 'true';
 
-    const transactions = await prisma.transaction.findMany({
-      where: unclaimed
-        ? { claimedById: null }
-        : { claimedById: session.id },
-      orderBy: { date: 'desc' },
-    });
+    let transactions;
+
+    if (unclaimed) {
+      // For unclaimed transactions, only show those from connected users
+      // Get all users who are connected to the current user (approved share requests)
+      const connections = await prisma.shareRequest.findMany({
+        where: {
+          status: 'approved',
+          OR: [
+            { requesterId: session.id },
+            { targetId: session.id },
+          ],
+        },
+      });
+
+      // Build list of user IDs who can share unclaimed transactions
+      const sharedUserIds = new Set<string>([session.id]);
+      for (const conn of connections) {
+        sharedUserIds.add(conn.requesterId);
+        sharedUserIds.add(conn.targetId);
+      }
+      const allowedUserIds = Array.from(sharedUserIds);
+
+      // Get unclaimed transactions that were uploaded by allowed users
+      transactions = await prisma.transaction.findMany({
+        where: {
+          claimedById: null,
+          dataUpload: {
+            userId: { in: allowedUserIds },
+          },
+        },
+        orderBy: [
+          { isDuplicateFlag: 'desc' },
+          { date: 'desc' },
+        ],
+      });
+    } else {
+      // For claimed transactions, only show user's own
+      transactions = await prisma.transaction.findMany({
+        where: { claimedById: session.id },
+        orderBy: { date: 'desc' },
+      });
+    }
 
     return NextResponse.json({
       transactions: transactions.map((tx) => ({

@@ -17,7 +17,7 @@ export async function DELETE(
 
     const transaction = await prisma.transaction.findUnique({
       where: { id },
-      include: { claimedBy: true },
+      include: { claimedBy: true, dataUpload: true },
     });
 
     if (!transaction) {
@@ -37,6 +37,27 @@ export async function DELETE(
         { error: 'Cannot delete a claimed transaction. Ask the owner to delete it.' },
         { status: 400 }
       );
+    }
+
+    // Verify user is connected to the uploader
+    if (transaction.dataUpload) {
+      const uploaderId = transaction.dataUpload.userId;
+      if (uploaderId !== session.id) {
+        // Check if user is connected to the uploader
+        const connection = await prisma.shareRequest.findFirst({
+          where: {
+            status: 'approved',
+            OR: [
+              { requesterId: session.id, targetId: uploaderId },
+              { requesterId: uploaderId, targetId: session.id },
+            ],
+          },
+        });
+
+        if (!connection) {
+          return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+        }
+      }
     }
 
     // Unflag the paired transaction before deleting

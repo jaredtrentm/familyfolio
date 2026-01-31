@@ -24,9 +24,33 @@ export async function POST(request: NextRequest) {
       take: 50,
     });
 
-    // Get unclaimed transactions
+    // Get all users who are connected to the current user (approved share requests)
+    const connections = await prisma.shareRequest.findMany({
+      where: {
+        status: 'approved',
+        OR: [
+          { requesterId: session.id },
+          { targetId: session.id },
+        ],
+      },
+    });
+
+    // Build list of user IDs who can share unclaimed transactions
+    const sharedUserIds = new Set<string>([session.id]);
+    for (const conn of connections) {
+      sharedUserIds.add(conn.requesterId);
+      sharedUserIds.add(conn.targetId);
+    }
+    const allowedUserIds = Array.from(sharedUserIds);
+
+    // Get unclaimed transactions only from connected users
     const unclaimedTransactions = await prisma.transaction.findMany({
-      where: { claimedById: null },
+      where: {
+        claimedById: null,
+        dataUpload: {
+          userId: { in: allowedUserIds },
+        },
+      },
       orderBy: { date: 'desc' },
     });
 

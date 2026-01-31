@@ -19,15 +19,37 @@ export async function PATCH(
     // Get the transaction first to check ownership
     const transaction = await prisma.transaction.findUnique({
       where: { id },
+      include: { dataUpload: true },
     });
 
     if (!transaction) {
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
 
-    // Only allow editing if unclaimed or claimed by this user
+    // For claimed transactions, only the owner can edit
     if (transaction.claimedById && transaction.claimedById !== session.id) {
       return NextResponse.json({ error: 'Not authorized to edit this transaction' }, { status: 403 });
+    }
+
+    // For unclaimed transactions, verify user is connected to the uploader
+    if (!transaction.claimedById && transaction.dataUpload) {
+      const uploaderId = transaction.dataUpload.userId;
+      if (uploaderId !== session.id) {
+        // Check if user is connected to the uploader
+        const connection = await prisma.shareRequest.findFirst({
+          where: {
+            status: 'approved',
+            OR: [
+              { requesterId: session.id, targetId: uploaderId },
+              { requesterId: uploaderId, targetId: session.id },
+            ],
+          },
+        });
+
+        if (!connection) {
+          return NextResponse.json({ error: 'Not authorized to edit this transaction' }, { status: 403 });
+        }
+      }
     }
 
     // Build update data
@@ -96,6 +118,7 @@ export async function DELETE(
     // Get the transaction first
     const transaction = await prisma.transaction.findUnique({
       where: { id },
+      include: { dataUpload: true },
     });
 
     if (!transaction) {
@@ -105,6 +128,27 @@ export async function DELETE(
     // For claimed transactions, only the owner can delete/unclaim
     if (transaction.claimedById && transaction.claimedById !== session.id) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+
+    // For unclaimed transactions, verify user is connected to the uploader
+    if (!transaction.claimedById && transaction.dataUpload) {
+      const uploaderId = transaction.dataUpload.userId;
+      if (uploaderId !== session.id) {
+        // Check if user is connected to the uploader
+        const connection = await prisma.shareRequest.findFirst({
+          where: {
+            status: 'approved',
+            OR: [
+              { requesterId: session.id, targetId: uploaderId },
+              { requesterId: uploaderId, targetId: session.id },
+            ],
+          },
+        });
+
+        if (!connection) {
+          return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+        }
+      }
     }
 
     if (action === 'unclaim') {

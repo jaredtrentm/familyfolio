@@ -22,11 +22,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update transactions to claim them
+    // Get all users who are connected to the current user (approved share requests)
+    const connections = await prisma.shareRequest.findMany({
+      where: {
+        status: 'approved',
+        OR: [
+          { requesterId: session.id },
+          { targetId: session.id },
+        ],
+      },
+    });
+
+    // Build list of user IDs who can share unclaimed transactions
+    const sharedUserIds = new Set<string>([session.id]);
+    for (const conn of connections) {
+      sharedUserIds.add(conn.requesterId);
+      sharedUserIds.add(conn.targetId);
+    }
+    const allowedUserIds = Array.from(sharedUserIds);
+
+    // Only claim transactions that were uploaded by allowed users
     const result = await prisma.transaction.updateMany({
       where: {
         id: { in: transactionIds },
         claimedById: null, // Only claim unclaimed transactions
+        dataUpload: {
+          userId: { in: allowedUserIds },
+        },
       },
       data: {
         claimedById: session.id,

@@ -20,17 +20,53 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Query is required' }, { status: 400 });
     }
 
+    // Get all users who are connected to the current user (approved share requests)
+    const connections = await prisma.shareRequest.findMany({
+      where: {
+        status: 'approved',
+        OR: [
+          { requesterId: session.id },
+          { targetId: session.id },
+        ],
+      },
+    });
+
+    // Build list of user IDs who can share unclaimed transactions
+    const sharedUserIds = new Set<string>([session.id]);
+    for (const conn of connections) {
+      sharedUserIds.add(conn.requesterId);
+      sharedUserIds.add(conn.targetId);
+    }
+    const allowedUserIds = Array.from(sharedUserIds);
+
     // Get transactions to search through
-    // If transactionIds provided, search those; otherwise search unclaimed
+    // If transactionIds provided, search those; otherwise search unclaimed from connected users
     let transactions;
     if (transactionIds && Array.isArray(transactionIds) && transactionIds.length > 0) {
+      // When searching specific IDs, verify they belong to user or connected users
       transactions = await prisma.transaction.findMany({
-        where: { id: { in: transactionIds } },
+        where: {
+          id: { in: transactionIds },
+          OR: [
+            { claimedById: session.id },
+            {
+              claimedById: null,
+              dataUpload: {
+                userId: { in: allowedUserIds },
+              },
+            },
+          ],
+        },
         orderBy: { date: 'desc' },
       });
     } else {
       transactions = await prisma.transaction.findMany({
-        where: { claimedById: null },
+        where: {
+          claimedById: null,
+          dataUpload: {
+            userId: { in: allowedUserIds },
+          },
+        },
         orderBy: { date: 'desc' },
       });
     }
