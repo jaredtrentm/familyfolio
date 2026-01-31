@@ -1,66 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
-import YahooFinance from 'yahoo-finance2';
-
-const yahooFinance = new YahooFinance();
+import { fetchStockData, fetchMultipleStocks } from '@/lib/stock-data';
 
 // Fetch and cache stock data for a symbol
 async function fetchAndCacheStockData(symbol: string) {
   const normalizedSymbol = symbol.toUpperCase().trim();
 
   try {
-    const quote = await yahooFinance.quote(normalizedSymbol);
+    const data = await fetchStockData(normalizedSymbol);
 
-    if (quote && typeof quote === 'object') {
-      const q = quote as {
-        shortName?: string;
-        longName?: string;
-        regularMarketPrice?: number;
-        regularMarketChange?: number;
-        regularMarketChangePercent?: number;
-        regularMarketPreviousClose?: number;
-        marketCap?: number;
-      };
-
-      let sector: string | null = null;
-      let industry: string | null = null;
-
-      try {
-        const summary = await yahooFinance.quoteSummary(normalizedSymbol, {
-          modules: ['assetProfile'],
-        });
-        const summaryData = summary as { assetProfile?: { sector?: string; industry?: string } } | null;
-        if (summaryData?.assetProfile) {
-          sector = summaryData.assetProfile.sector || null;
-          industry = summaryData.assetProfile.industry || null;
-        }
-      } catch {
-        // Ignore profile errors
-      }
-
+    if (data) {
       const cached = await prisma.stockCache.upsert({
         where: { symbol: normalizedSymbol },
         update: {
-          name: q.shortName || q.longName || normalizedSymbol,
-          currentPrice: q.regularMarketPrice || 0,
-          dayChange: q.regularMarketChange || 0,
-          dayChangePercent: q.regularMarketChangePercent || 0,
-          previousClose: q.regularMarketPreviousClose || 0,
-          marketCap: q.marketCap || null,
-          sector,
-          industry,
+          name: data.name,
+          currentPrice: data.currentPrice,
+          dayChange: data.dayChange,
+          dayChangePercent: data.dayChangePercent,
+          previousClose: data.previousClose,
+          marketCap: data.marketCap,
+          sector: data.sector,
+          industry: data.industry,
         },
         create: {
           symbol: normalizedSymbol,
-          name: q.shortName || q.longName || normalizedSymbol,
-          currentPrice: q.regularMarketPrice || 0,
-          dayChange: q.regularMarketChange || 0,
-          dayChangePercent: q.regularMarketChangePercent || 0,
-          previousClose: q.regularMarketPreviousClose || 0,
-          marketCap: q.marketCap || null,
-          sector,
-          industry,
+          name: data.name,
+          currentPrice: data.currentPrice,
+          dayChange: data.dayChange,
+          dayChangePercent: data.dayChangePercent,
+          previousClose: data.previousClose,
+          marketCap: data.marketCap,
+          sector: data.sector,
+          industry: data.industry,
         },
       });
 
@@ -110,8 +82,35 @@ export async function GET() {
     // Fetch fresh data for missing/stale symbols
     if (symbolsToFetch.length > 0) {
       console.log(`[Alerts API] Fetching fresh data for ${symbolsToFetch.length} symbols`);
-      const fetchPromises = symbolsToFetch.slice(0, 5).map(symbol => fetchAndCacheStockData(symbol));
-      await Promise.all(fetchPromises);
+      const freshData = await fetchMultipleStocks(symbolsToFetch.slice(0, 10));
+
+      // Cache all fetched data
+      for (const [, data] of freshData) {
+        await prisma.stockCache.upsert({
+          where: { symbol: data.symbol },
+          update: {
+            name: data.name,
+            currentPrice: data.currentPrice,
+            dayChange: data.dayChange,
+            dayChangePercent: data.dayChangePercent,
+            previousClose: data.previousClose,
+            marketCap: data.marketCap,
+            sector: data.sector,
+            industry: data.industry,
+          },
+          create: {
+            symbol: data.symbol,
+            name: data.name,
+            currentPrice: data.currentPrice,
+            dayChange: data.dayChange,
+            dayChangePercent: data.dayChangePercent,
+            previousClose: data.previousClose,
+            marketCap: data.marketCap,
+            sector: data.sector,
+            industry: data.industry,
+          },
+        });
+      }
 
       // Re-fetch from cache
       stockData = await prisma.stockCache.findMany({

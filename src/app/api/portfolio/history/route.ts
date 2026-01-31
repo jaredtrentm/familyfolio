@@ -5,6 +5,30 @@ import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance();
 
+// Retry with exponential backoff
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      if (attempt < maxRetries - 1) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 type TimePeriod = '1D' | '1W' | '1M' | '3M' | 'YTD' | '1Y' | '5Y' | 'MAX';
 
 function getStartDate(period: TimePeriod): Date {
@@ -164,11 +188,21 @@ async function getHistoricalPrices(
     const bufferedStart = new Date(startDate);
     bufferedStart.setDate(bufferedStart.getDate() - 7);
 
-    const result = await yahooFinance.chart(symbol, {
-      period1: bufferedStart,
-      period2: endDate,
-      interval: '1d',
-    }) as ChartResult | null;
+    // Use retry logic with timeout
+    const result = await retryWithBackoff(async () => {
+      const chartPromise = yahooFinance.chart(symbol, {
+        period1: bufferedStart,
+        period2: endDate,
+        interval: '1d',
+      });
+
+      // Add timeout
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Chart fetch timeout')), 15000)
+      );
+
+      return Promise.race([chartPromise, timeoutPromise]) as Promise<ChartResult | null>;
+    }, 2, 500);
 
     if (result && result.quotes) {
       for (const quote of result.quotes) {

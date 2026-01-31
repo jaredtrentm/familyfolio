@@ -1,9 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
-import YahooFinance from 'yahoo-finance2';
+import { fetchStockData, fetchMultipleStocks, type StockQuote } from '@/lib/stock-data';
 
-const yahooFinance = new YahooFinance();
+// Cache stock data to database
+async function cacheStockData(data: StockQuote) {
+  return prisma.stockCache.upsert({
+    where: { symbol: data.symbol },
+    update: {
+      name: data.name,
+      currentPrice: data.currentPrice,
+      dayChange: data.dayChange,
+      dayChangePercent: data.dayChangePercent,
+      previousClose: data.previousClose,
+      marketCap: data.marketCap,
+      sector: data.sector,
+      industry: data.industry,
+      fiftyTwoWeekHigh: data.fiftyTwoWeekHigh,
+      fiftyTwoWeekLow: data.fiftyTwoWeekLow,
+      peRatio: data.peRatio,
+      dividendYield: data.dividendYield,
+      volume: data.volume,
+      averageVolume: data.averageVolume,
+      targetPrice: data.targetPrice,
+      earningsDate: data.earningsDate,
+      beta: data.beta,
+    },
+    create: {
+      symbol: data.symbol,
+      name: data.name,
+      currentPrice: data.currentPrice,
+      dayChange: data.dayChange,
+      dayChangePercent: data.dayChangePercent,
+      previousClose: data.previousClose,
+      marketCap: data.marketCap,
+      sector: data.sector,
+      industry: data.industry,
+      fiftyTwoWeekHigh: data.fiftyTwoWeekHigh,
+      fiftyTwoWeekLow: data.fiftyTwoWeekLow,
+      peRatio: data.peRatio,
+      dividendYield: data.dividendYield,
+      volume: data.volume,
+      averageVolume: data.averageVolume,
+      targetPrice: data.targetPrice,
+      earningsDate: data.earningsDate,
+      beta: data.beta,
+    },
+  });
+}
 
 // Fetch and cache stock data for a symbol
 async function fetchAndCacheStockData(symbol: string) {
@@ -12,105 +56,10 @@ async function fetchAndCacheStockData(symbol: string) {
   try {
     console.log(`[Watchlist API] Fetching stock data for ${normalizedSymbol}...`);
 
-    // Fetch from Yahoo Finance
-    const quote = await yahooFinance.quote(normalizedSymbol);
+    const data = await fetchStockData(normalizedSymbol);
 
-    if (quote && typeof quote === 'object') {
-      const q = quote as {
-        shortName?: string;
-        longName?: string;
-        regularMarketPrice?: number;
-        regularMarketChange?: number;
-        regularMarketChangePercent?: number;
-        regularMarketPreviousClose?: number;
-        marketCap?: number;
-        fiftyTwoWeekHigh?: number;
-        fiftyTwoWeekLow?: number;
-        trailingPE?: number;
-        dividendYield?: number;
-        regularMarketVolume?: number;
-        averageDailyVolume3Month?: number;
-      };
-
-      // Try to get sector info and additional data
-      let sector: string | null = null;
-      let industry: string | null = null;
-      let targetPrice: number | null = null;
-      let earningsDate: Date | null = null;
-      let beta: number | null = null;
-
-      try {
-        const summary = await yahooFinance.quoteSummary(normalizedSymbol, {
-          modules: ['assetProfile', 'financialData', 'calendarEvents', 'defaultKeyStatistics'],
-        });
-        const summaryData = summary as {
-          assetProfile?: { sector?: string; industry?: string };
-          financialData?: { targetMeanPrice?: number };
-          calendarEvents?: { earnings?: { earningsDate?: Date[] } };
-          defaultKeyStatistics?: { beta?: number };
-        } | null;
-
-        if (summaryData?.assetProfile) {
-          sector = summaryData.assetProfile.sector || null;
-          industry = summaryData.assetProfile.industry || null;
-        }
-        if (summaryData?.financialData?.targetMeanPrice) {
-          targetPrice = summaryData.financialData.targetMeanPrice;
-        }
-        if (summaryData?.calendarEvents?.earnings?.earningsDate?.[0]) {
-          earningsDate = new Date(summaryData.calendarEvents.earnings.earningsDate[0]);
-        }
-        if (summaryData?.defaultKeyStatistics?.beta) {
-          beta = summaryData.defaultKeyStatistics.beta;
-        }
-      } catch (profileError) {
-        console.log(`[Watchlist API] Could not fetch profile for ${normalizedSymbol}:`, profileError instanceof Error ? profileError.message : 'Unknown');
-      }
-
-      // Upsert to cache
-      const cached = await prisma.stockCache.upsert({
-        where: { symbol: normalizedSymbol },
-        update: {
-          name: q.shortName || q.longName || normalizedSymbol,
-          currentPrice: q.regularMarketPrice || 0,
-          dayChange: q.regularMarketChange || 0,
-          dayChangePercent: q.regularMarketChangePercent || 0,
-          previousClose: q.regularMarketPreviousClose || 0,
-          marketCap: q.marketCap || null,
-          sector,
-          industry,
-          fiftyTwoWeekHigh: q.fiftyTwoWeekHigh || null,
-          fiftyTwoWeekLow: q.fiftyTwoWeekLow || null,
-          peRatio: q.trailingPE || null,
-          dividendYield: q.dividendYield ? q.dividendYield * 100 : null, // Convert to percentage
-          volume: q.regularMarketVolume || null,
-          averageVolume: q.averageDailyVolume3Month || null,
-          targetPrice,
-          earningsDate,
-          beta,
-        },
-        create: {
-          symbol: normalizedSymbol,
-          name: q.shortName || q.longName || normalizedSymbol,
-          currentPrice: q.regularMarketPrice || 0,
-          dayChange: q.regularMarketChange || 0,
-          dayChangePercent: q.regularMarketChangePercent || 0,
-          previousClose: q.regularMarketPreviousClose || 0,
-          marketCap: q.marketCap || null,
-          sector,
-          industry,
-          fiftyTwoWeekHigh: q.fiftyTwoWeekHigh || null,
-          fiftyTwoWeekLow: q.fiftyTwoWeekLow || null,
-          peRatio: q.trailingPE || null,
-          dividendYield: q.dividendYield ? q.dividendYield * 100 : null,
-          volume: q.regularMarketVolume || null,
-          averageVolume: q.averageDailyVolume3Month || null,
-          targetPrice,
-          earningsDate,
-          beta,
-        },
-      });
-
+    if (data) {
+      const cached = await cacheStockData(data);
       console.log(`[Watchlist API] Cached ${normalizedSymbol}: price=$${cached.currentPrice}, PE=${cached.peRatio}, target=$${cached.targetPrice}`);
       return cached;
     }
@@ -172,13 +121,17 @@ export async function GET() {
     const missingSymbols = symbols.filter(s => !cachedSymbols.has(s));
     const symbolsToFetch = [...new Set([...missingSymbols, ...staleSymbols])];
 
-    // Fetch fresh data for missing/stale symbols (limit to avoid timeout)
+    // Fetch fresh data for missing/stale symbols
     if (symbolsToFetch.length > 0) {
       console.log(`[Watchlist API] Fetching fresh data for ${symbolsToFetch.length} symbols:`, symbolsToFetch);
 
-      // Fetch in parallel (but limit to prevent rate limiting)
-      const fetchPromises = symbolsToFetch.slice(0, 5).map(symbol => fetchAndCacheStockData(symbol));
-      await Promise.all(fetchPromises);
+      // Use the batch fetcher which handles retries and fallbacks
+      const freshData = await fetchMultipleStocks(symbolsToFetch.slice(0, 10));
+
+      // Cache all fetched data
+      for (const [, data] of freshData) {
+        await cacheStockData(data);
+      }
 
       // Re-fetch from cache after updates
       stockData = await prisma.stockCache.findMany({
@@ -279,7 +232,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Fetch and cache stock info (this will get fresh data from Yahoo Finance)
+    // Fetch and cache stock info
     let stockInfo = await prisma.stockCache.findUnique({
       where: { symbol: normalizedSymbol },
     });
