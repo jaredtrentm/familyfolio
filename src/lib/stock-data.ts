@@ -315,12 +315,19 @@ async function fetchFromAlphaVantage(symbol: string): Promise<StockQuote | null>
   }
 }
 
+// Track last error for debugging
+let lastError: string | null = null;
+export function getLastError(): string | null {
+  return lastError;
+}
+
 /**
  * Main function to fetch stock data with fallbacks
  */
 export async function fetchStockData(symbol: string): Promise<StockQuote | null> {
   const normalizedSymbol = symbol.toUpperCase().trim();
   resetFailureCountIfNeeded();
+  lastError = null;
 
   // If Yahoo has been failing, try Sina first
   const useYahooFirst = yahooFailureCount < MAX_FAILURES_BEFORE_SWITCH;
@@ -337,6 +344,8 @@ export async function fetchStockData(symbol: string): Promise<StockQuote | null>
         { name: 'AlphaVantage', fn: () => fetchFromAlphaVantage(normalizedSymbol) },
       ];
 
+  const errors: string[] = [];
+
   for (const provider of providers) {
     try {
       console.log(`[Stock Data] Trying ${provider.name} for ${normalizedSymbol}...`);
@@ -352,9 +361,14 @@ export async function fetchStockData(symbol: string): Promise<StockQuote | null>
         }
 
         return result;
+      } else {
+        const msg = `${provider.name}: returned null or zero price`;
+        errors.push(msg);
+        console.log(`[Stock Data] ${msg}`);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown';
+      errors.push(`${provider.name}: ${errorMsg}`);
       console.log(`[Stock Data] ${provider.name} failed for ${normalizedSymbol}: ${errorMsg}`);
 
       // Track Yahoo failures
@@ -365,7 +379,8 @@ export async function fetchStockData(symbol: string): Promise<StockQuote | null>
     }
   }
 
-  console.log(`[Stock Data] All providers failed for ${normalizedSymbol}`);
+  lastError = errors.join('; ');
+  console.log(`[Stock Data] All providers failed for ${normalizedSymbol}: ${lastError}`);
   return null;
 }
 
