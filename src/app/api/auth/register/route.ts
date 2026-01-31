@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { hashPassword, createToken, setAuthCookie } from '@/lib/auth';
 
-// Password strength validation
+// Standard password validation
 function validatePasswordStrength(password: string): { valid: boolean; error?: string } {
   if (password.length < 8) {
     return { valid: false, error: 'Password must be at least 8 characters' };
@@ -25,7 +25,7 @@ function validatePasswordStrength(password: string): { valid: boolean; error?: s
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, name, pin, locale = 'en' } = body;
+    const { email, password, name, locale = 'en' } = body;
 
     if (!email || !password || !name) {
       return NextResponse.json(
@@ -39,14 +39,6 @@ export async function POST(request: NextRequest) {
     if (!passwordValidation.valid) {
       return NextResponse.json(
         { error: passwordValidation.error },
-        { status: 400 }
-      );
-    }
-
-    // Validate PIN format if provided
-    if (pin && (!/^\d{4}$/.test(pin))) {
-      return NextResponse.json(
-        { error: 'PIN must be exactly 4 digits' },
         { status: 400 }
       );
     }
@@ -72,7 +64,6 @@ export async function POST(request: NextRequest) {
         email: email.toLowerCase(),
         password: hashedPassword,
         name,
-        pin: pin || null,
         locale,
       },
     });
@@ -94,7 +85,6 @@ export async function POST(request: NextRequest) {
         email: user.email,
         name: user.name,
         locale: user.locale,
-        hasPin: !!user.pin,
       },
     });
   } catch (error) {

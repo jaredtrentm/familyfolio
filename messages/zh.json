@@ -43,6 +43,7 @@
     "reqNumber": "至少一个数字",
     "reqSpecial": "至少一个特殊字符 (!@#$%^&*)",
     "passwordsDoNotMatch": "密码不匹配",
+    "passwordMin8": "密码必须至少8个字符",
     "passwordRequirementsNotMet": "请满足所有密码要求",
     "resetPassword": "重置密码",
     "resetPasswordDescription": "输入您的邮箱，我们将发送重置密码链接",

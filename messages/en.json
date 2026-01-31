@@ -43,6 +43,7 @@
     "reqNumber": "At least one number",
     "reqSpecial": "At least one special character (!@#$%^&*)",
     "passwordsDoNotMatch": "Passwords do not match",
+    "passwordMin8": "Password must be at least 8 characters",
     "passwordRequirementsNotMet": "Please meet all password requirements",
     "resetPassword": "Reset Password",
     "resetPasswordDescription": "Enter your email and we'll send you a link to reset your password",

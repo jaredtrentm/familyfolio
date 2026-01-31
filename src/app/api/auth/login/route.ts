@@ -5,11 +5,11 @@ import { verifyPassword, createToken, setAuthCookie } from '@/lib/auth';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, pin } = body;
+    const { email, password } = body;
 
-    if (!email) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: 'Email is required' },
+        { error: 'Email and password are required' },
         { status: 400 }
       );
     }
@@ -25,30 +25,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check PIN if provided (quick login)
-    if (pin) {
-      if (user.pin !== pin) {
-        return NextResponse.json(
-          { error: 'Invalid PIN' },
-          { status: 401 }
-        );
-      }
-    } else {
-      // Check password
-      if (!password) {
-        return NextResponse.json(
-          { error: 'Password is required' },
-          { status: 400 }
-        );
-      }
-
-      const isValid = await verifyPassword(password, user.password);
-      if (!isValid) {
-        return NextResponse.json(
-          { error: 'Invalid credentials' },
-          { status: 401 }
-        );
-      }
+    const isValid = await verifyPassword(password, user.password);
+    if (!isValid) {
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401 }
+      );
     }
 
     // Create token
@@ -68,7 +50,6 @@ export async function POST(request: NextRequest) {
         email: user.email,
         name: user.name,
         locale: user.locale,
-        hasPin: !!user.pin,
       },
     });
   } catch (error) {

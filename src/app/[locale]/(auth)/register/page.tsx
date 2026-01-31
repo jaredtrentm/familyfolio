@@ -4,9 +4,9 @@ import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Check, X } from 'lucide-react';
+import { Check, X, Eye, EyeOff } from 'lucide-react';
 
-// Password strength requirements
+// Standard password requirements
 const PASSWORD_REQUIREMENTS = {
   minLength: 8,
   hasUppercase: /[A-Z]/,
@@ -44,7 +44,8 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [pin, setPin] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
 
   const passwordStrength = useMemo(() => checkPasswordStrength(password), [password]);
@@ -77,7 +78,6 @@ export default function RegisterPage() {
           name,
           email,
           password,
-          pin: pin || undefined,
           locale,
         }),
       });
@@ -139,14 +139,23 @@ export default function RegisterPage() {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {t('password')}
           </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onFocus={() => setShowPasswordRequirements(true)}
-            required
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onFocus={() => setShowPasswordRequirements(true)}
+              required
+              className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
           {/* Password strength indicator */}
           {showPasswordRequirements && password.length > 0 && (
             <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
@@ -168,38 +177,31 @@ export default function RegisterPage() {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {t('confirmPassword')}
           </label>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-              confirmPassword.length > 0 && !passwordsMatch
-                ? 'border-red-500 dark:border-red-500'
-                : 'border-gray-300 dark:border-gray-600'
-            }`}
-          />
+          <div className="relative">
+            <input
+              type={showConfirmPassword ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              className={`w-full px-4 py-3 pr-12 rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                confirmPassword.length > 0 && !passwordsMatch
+                  ? 'border-red-500 dark:border-red-500'
+                  : 'border-gray-300 dark:border-gray-600'
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
           {confirmPassword.length > 0 && !passwordsMatch && (
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">
               {t('passwordsDoNotMatch')}
             </p>
           )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {t('pinOptional')}
-          </label>
-          <input
-            type="password"
-            inputMode="numeric"
-            pattern="[0-9]{4}"
-            maxLength={4}
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl tracking-widest"
-            placeholder="****"
-          />
         </div>
 
         {error && (

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const t = useTranslations('auth');
@@ -14,11 +15,10 @@ export default function LoginPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [loginMode, setLoginMode] = useState<'password' | 'pin'>('password');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [pin, setPin] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,11 +29,7 @@ export default function LoginPage() {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          loginMode === 'pin'
-            ? { email, pin }
-            : { email, password }
-        ),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
@@ -61,32 +57,6 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Login mode toggle */}
-      <div className="flex mb-6 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-        <button
-          type="button"
-          onClick={() => setLoginMode('password')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            loginMode === 'password'
-              ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow'
-              : 'text-gray-500 dark:text-gray-400'
-          }`}
-        >
-          {t('loginWithPassword')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setLoginMode('pin')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            loginMode === 'pin'
-              ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow'
-              : 'text-gray-500 dark:text-gray-400'
-          }`}
-        >
-          {t('loginWithPin')}
-        </button>
-      </div>
-
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -102,45 +72,35 @@ export default function LoginPage() {
           />
         </div>
 
-        {loginMode === 'password' ? (
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('password')}
-              </label>
-              <Link
-                href={`/${locale}/forgot-password`}
-                className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-              >
-                {t('forgotPassword')}
-              </Link>
-            </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('password')}
+            </label>
+            <Link
+              href={`/${locale}/forgot-password`}
+              className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              {t('forgotPassword')}
+            </Link>
+          </div>
+          <div className="relative">
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
           </div>
-        ) : (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('pin')}
-            </label>
-            <input
-              type="password"
-              inputMode="numeric"
-              pattern="[0-9]{4}"
-              maxLength={4}
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              required
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl tracking-widest"
-              placeholder="****"
-            />
-          </div>
-        )}
+        </div>
 
         {error && (
           <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">
