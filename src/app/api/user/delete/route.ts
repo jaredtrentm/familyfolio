@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { verifySession } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/auth";
 
 export async function DELETE() {
   try {
-    const session = await verifySession();
-    if (!session?.userId) {
+    const session = await getSession();
+    if (!session?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = session.userId;
+    const userId = session.id;
 
     // Delete all user data in order (respecting foreign keys)
     // Prisma cascade should handle most of this, but we do it explicitly
