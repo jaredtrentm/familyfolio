@@ -3,6 +3,7 @@ import { getMessages, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { locales, type Locale } from '@/i18n/config';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import '../globals.css';
 
 export function generateStaticParams() {
@@ -48,11 +49,13 @@ export default async function LocaleLayout({
           }}
         />
       </head>
-      <body className="min-h-screen bg-gray-50 dark:bg-gray-900 antialiased">
-        <NextIntlClientProvider messages={messages}>
-          {children}
-          <InstallPrompt />
-        </NextIntlClientProvider>
+      <body className="min-h-screen bg-gray-50 dark:bg-gray-900 antialiased" suppressHydrationWarning>
+        <ThemeProvider>
+          <NextIntlClientProvider messages={messages}>
+            {children}
+            <InstallPrompt />
+          </NextIntlClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { PortfolioSummary } from './PortfolioSummary';
 import { HoldingsTable } from './HoldingsTable';
 import { AccountsManager } from './AccountsManager';
@@ -53,6 +54,7 @@ export function DashboardClient({
   locale,
   noHoldingsMessage,
 }: DashboardClientProps) {
+  const t = useTranslations('dashboard');
   const [totalCash, setTotalCash] = useState(0);
   const [stockPrices, setStockPrices] = useState<Map<string, StockData>>(new Map());
   const [etfHoldings, setEtfHoldings] = useState<EtfHoldingsMap>({});
@@ -304,7 +306,7 @@ export function DashboardClient({
             ) : (
               <RefreshCw className="w-4 h-4" />
             )}
-            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            {isRefreshing ? t('refreshing') : t('refresh')}
           </button>
         </div>
       )}

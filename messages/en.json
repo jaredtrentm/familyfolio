@@ -79,7 +79,9 @@
     "recentTransactions": "Recent Transactions",
     "noHoldings": "No holdings yet. Claim some transactions to get started.",
     "viewAll": "View All",
-    "assetTypes": "Asset Types"
+    "assetTypes": "Asset Types",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing..."
   },
   "transactions": {
     "title": "My Transactions",
@@ -184,9 +186,18 @@
   "settings": {
     "title": "Settings",
     "language": "Language",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
     "changePin": "Change PIN",
     "changePassword": "Change Password",
-    "deleteAccount": "Delete Account"
+    "deleteAccount": "Delete Account",
+    "notifications": "Notifications",
+    "enablePushNotifications": "Enable Push Notifications",
+    "pushNotificationsDesc": "Receive alerts when stocks hit your target price",
+    "pushEnabled": "Push notifications enabled",
+    "pushDisabled": "Push notifications disabled"
   },
   "share": {
     "title": "Shared Unclaimed Pool",
@@ -375,6 +386,14 @@
     "priceAlert": "Price Alert",
     "weeklyReport": "Weekly Report",
     "system": "System"
+  },
+  "news": {
+    "title": "News",
+    "news": "News",
+    "marketNews": "Market News",
+    "refresh": "Refresh",
+    "tryAgain": "Try again",
+    "noNews": "No news available"
   },
   "widgets": {
     "portfolioSummary": "Portfolio Summary",

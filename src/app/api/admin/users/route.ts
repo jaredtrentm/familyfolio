@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { sendPasswordResetEmail } from '@/lib/email';
 
-const ADMIN_EMAIL = 'jaredtrentm@gmail.com';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
 
 async function isAdmin(): Promise<boolean> {
   const cookieStore = await cookies();

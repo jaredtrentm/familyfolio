@@ -1,9 +1,15 @@
-import { setRequestLocale } from 'next-intl/server';
+import { setRequestLocale, getTranslations } from 'next-intl/server';
 import { AlertsClient } from './AlertsClient';
 
-export async function generateMetadata() {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'alerts' });
   return {
-    title: 'Price Alerts',
+    title: t('title'),
   };
 }
 

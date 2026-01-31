@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { Globe, Key, Lock, Trash2 } from 'lucide-react';
+import { Globe, Key, Lock, Trash2, Palette, Bell } from 'lucide-react';
 import { ShareManager } from '@/components/settings/ShareManager';
 import { CostBasisSettings } from '@/components/settings/CostBasisSettings';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
+import { PushNotificationToggle } from '@/components/notifications/PushNotificationToggle';
 
 interface SettingsClientProps {
   locale: string;
@@ -85,6 +87,28 @@ export function SettingsClient({ locale, user }: SettingsClientProps) {
               中文
             </button>
           </div>
+        </div>
+
+        {/* Theme Setting */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Palette className="w-5 h-5 text-gray-500" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {t('theme')}
+            </h2>
+          </div>
+          <ThemeToggle />
+        </div>
+
+        {/* Push Notifications */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Bell className="w-5 h-5 text-gray-500" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {t('notifications')}
+            </h2>
+          </div>
+          <PushNotificationToggle />
         </div>
 
         {/* Cost Basis Settings */}

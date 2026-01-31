@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Star, Plus, Trash2, TrendingUp, TrendingDown, Loader2, Target, Calendar, Activity, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { NewsWidget } from '@/components/news/NewsWidget';
 
 interface WatchlistItem {
   id: string;
@@ -248,15 +249,18 @@ export function WatchlistClient({ locale }: WatchlistClientProps) {
         )}
       </AnimatePresence>
 
-      {/* Watchlist */}
-      {watchlist.length === 0 ? (
-        <div className="glass-card rounded-xl p-12 text-center">
-          <Star className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('noItems')}</h3>
-          <p className="text-gray-500 dark:text-gray-400">{t('noItemsDesc')}</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Watchlist */}
+        <div className="lg:col-span-2">
+          {watchlist.length === 0 ? (
+            <div className="glass-card rounded-xl p-12 text-center">
+              <Star className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('noItems')}</h3>
+              <p className="text-gray-500 dark:text-gray-400">{t('noItemsDesc')}</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
           {watchlist.map((item, index) => {
             const isPositive = (item.dayChange || 0) >= 0;
             const position52W = get52WeekPosition(item);
@@ -482,8 +486,25 @@ export function WatchlistClient({ locale }: WatchlistClientProps) {
               </motion.div>
             );
           })}
+            </div>
+          )}
         </div>
-      )}
+
+        {/* News Sidebar */}
+        <div className="space-y-6">
+          {/* Market News */}
+          <NewsWidget maxItems={5} />
+
+          {/* Symbol-specific news for expanded item */}
+          {expandedId && watchlist.find(w => w.id === expandedId) && (
+            <NewsWidget
+              symbol={watchlist.find(w => w.id === expandedId)?.symbol}
+              title={`${watchlist.find(w => w.id === expandedId)?.symbol} News`}
+              maxItems={5}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

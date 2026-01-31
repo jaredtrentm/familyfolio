@@ -45,6 +45,7 @@ model User {
   rebalanceTargets   RebalanceTarget[]
   notifications      Notification[]
   transactionHistory TransactionHistory[]
+  pushSubscriptions  PushSubscription[]
 }
 
 model Account {
@@ -317,10 +318,25 @@ model UserPreferences {
   userId          String   @unique
   widgetLayout    Json?
   costBasisMethod String   @default("FIFO")
+  theme           String   @default("system") // light, dark, system
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   user            User @relation(fields: [userId], references: [id])
+}
+
+// Push notification subscriptions
+model PushSubscription {
+  id           String   @id @default(cuid())
+  userId       String
+  endpoint     String   @unique
+  p256dh       String   // Public key
+  auth         String   // Auth secret
+  createdAt    DateTime @default(now())
+
+  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // Price alerts for stock notifications

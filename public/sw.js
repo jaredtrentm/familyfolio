@@ -61,3 +61,60 @@ self.addEventListener('fetch', (event) => {
       })
   );
 });
+
+// Push notification event
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  try {
+    const data = event.data.json();
+    const options = {
+      body: data.body || data.message,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      vibrate: [100, 50, 100],
+      data: {
+        url: data.url || '/',
+        dateOfArrival: Date.now(),
+      },
+      actions: data.actions || [
+        { action: 'open', title: 'View' },
+        { action: 'close', title: 'Dismiss' },
+      ],
+      tag: data.tag || 'default',
+      renotify: true,
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(data.title || 'FamilyFolio', options)
+    );
+  } catch (err) {
+    console.error('Push notification error:', err);
+  }
+});
+
+// Notification click event
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'close') return;
+
+  const urlToOpen = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Check if there's already a window open
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.focus();
+          client.navigate(urlToOpen);
+          return;
+        }
+      }
+      // Open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});

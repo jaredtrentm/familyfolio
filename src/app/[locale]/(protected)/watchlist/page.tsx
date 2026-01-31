@@ -1,9 +1,15 @@
-import { setRequestLocale } from 'next-intl/server';
+import { setRequestLocale, getTranslations } from 'next-intl/server';
 import { WatchlistClient } from './WatchlistClient';
 
-export async function generateMetadata() {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'watchlist' });
   return {
-    title: 'Watchlist',
+    title: t('title'),
   };
 }
 

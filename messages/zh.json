@@ -79,7 +79,9 @@
     "recentTransactions": "最近交易",
     "noHoldings": "暂无持仓，请先认领一些交易。",
     "viewAll": "查看全部",
-    "assetTypes": "资产类型"
+    "assetTypes": "资产类型",
+    "refresh": "刷新",
+    "refreshing": "刷新中..."
   },
   "transactions": {
     "title": "我的交易",
@@ -184,9 +186,18 @@
   "settings": {
     "title": "设置",
     "language": "语言",
+    "theme": "主题",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "themeSystem": "跟随系统",
     "changePin": "修改PIN码",
     "changePassword": "修改密码",
-    "deleteAccount": "删除账户"
+    "deleteAccount": "删除账户",
+    "notifications": "通知",
+    "enablePushNotifications": "启用推送通知",
+    "pushNotificationsDesc": "当股票达到目标价格时接收提醒",
+    "pushEnabled": "推送通知已启用",
+    "pushDisabled": "推送通知已禁用"
   },
   "gains": {
     "title": "盈亏分析",
@@ -324,6 +335,14 @@
     "priceAlert": "价格提醒",
     "weeklyReport": "周报",
     "system": "系统"
+  },
+  "news": {
+    "title": "新闻",
+    "news": "新闻",
+    "marketNews": "市场新闻",
+    "refresh": "刷新",
+    "tryAgain": "重试",
+    "noNews": "暂无新闻"
   },
   "widgets": {
     "portfolioSummary": "投资组合概览",
