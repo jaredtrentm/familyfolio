@@ -2,9 +2,9 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Use verified domain or Resend test sender
-// To use your own domain, verify it in Resend dashboard and set FROM_EMAIL env var
-const FROM_EMAIL = process.env.FROM_EMAIL || 'FamilyFolio <onboarding@resend.dev>';
+// Use Resend's default test sender - no domain verification required
+// To use your own domain, verify it in Resend dashboard and update this line
+const FROM_EMAIL = 'FamilyFolio <onboarding@resend.dev>';
 
 export async function sendPasswordResetEmail(
   email: string,
