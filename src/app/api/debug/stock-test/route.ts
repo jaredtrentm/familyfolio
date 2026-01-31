@@ -17,8 +17,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const symbol = searchParams.get('symbol') || 'AAPL';
+    const forceUpdate = searchParams.get('update') === 'true';
 
-    console.log(`[Debug Stock Test] Testing symbol: ${symbol}`);
+    console.log(`[Debug Stock Test] Testing symbol: ${symbol}, forceUpdate: ${forceUpdate}`);
 
     const results: Record<string, unknown> = {
       symbol,
@@ -125,6 +126,54 @@ export async function GET(request: NextRequest) {
           beta: data.beta,
         } : null,
       };
+
+      // Force update cache if requested
+      if (forceUpdate && data) {
+        console.log('[Debug] Force updating cache...');
+        await prisma.stockCache.upsert({
+          where: { symbol: data.symbol },
+          update: {
+            name: data.name,
+            currentPrice: data.currentPrice,
+            dayChange: data.dayChange,
+            dayChangePercent: data.dayChangePercent,
+            previousClose: data.previousClose,
+            marketCap: data.marketCap,
+            sector: data.sector,
+            industry: data.industry,
+            fiftyTwoWeekHigh: data.fiftyTwoWeekHigh,
+            fiftyTwoWeekLow: data.fiftyTwoWeekLow,
+            peRatio: data.peRatio,
+            dividendYield: data.dividendYield,
+            volume: data.volume,
+            averageVolume: data.averageVolume,
+            targetPrice: data.targetPrice,
+            earningsDate: data.earningsDate,
+            beta: data.beta,
+          },
+          create: {
+            symbol: data.symbol,
+            name: data.name,
+            currentPrice: data.currentPrice,
+            dayChange: data.dayChange,
+            dayChangePercent: data.dayChangePercent,
+            previousClose: data.previousClose,
+            marketCap: data.marketCap,
+            sector: data.sector,
+            industry: data.industry,
+            fiftyTwoWeekHigh: data.fiftyTwoWeekHigh,
+            fiftyTwoWeekLow: data.fiftyTwoWeekLow,
+            peRatio: data.peRatio,
+            dividendYield: data.dividendYield,
+            volume: data.volume,
+            averageVolume: data.averageVolume,
+            targetPrice: data.targetPrice,
+            earningsDate: data.earningsDate,
+            beta: data.beta,
+          },
+        });
+        results.cacheUpdated = true;
+      }
     } catch (error) {
       results.fetchStockData = {
         success: false,
@@ -158,6 +207,75 @@ export async function GET(request: NextRequest) {
         found: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
+    }
+
+    // If update=all, refresh all watchlist symbols
+    if (searchParams.get('update') === 'all') {
+      console.log('[Debug] Refreshing all watchlist symbols...');
+      const watchlist = await prisma.watchlistItem.findMany({
+        where: { userId: session.id },
+        select: { symbol: true },
+      });
+
+      const refreshResults: Record<string, unknown> = {};
+      for (const item of watchlist) {
+        try {
+          const data = await fetchStockData(item.symbol);
+          if (data) {
+            await prisma.stockCache.upsert({
+              where: { symbol: data.symbol },
+              update: {
+                name: data.name,
+                currentPrice: data.currentPrice,
+                dayChange: data.dayChange,
+                dayChangePercent: data.dayChangePercent,
+                previousClose: data.previousClose,
+                marketCap: data.marketCap,
+                sector: data.sector,
+                industry: data.industry,
+                fiftyTwoWeekHigh: data.fiftyTwoWeekHigh,
+                fiftyTwoWeekLow: data.fiftyTwoWeekLow,
+                peRatio: data.peRatio,
+                dividendYield: data.dividendYield,
+                volume: data.volume,
+                averageVolume: data.averageVolume,
+                targetPrice: data.targetPrice,
+                earningsDate: data.earningsDate,
+                beta: data.beta,
+              },
+              create: {
+                symbol: data.symbol,
+                name: data.name,
+                currentPrice: data.currentPrice,
+                dayChange: data.dayChange,
+                dayChangePercent: data.dayChangePercent,
+                previousClose: data.previousClose,
+                marketCap: data.marketCap,
+                sector: data.sector,
+                industry: data.industry,
+                fiftyTwoWeekHigh: data.fiftyTwoWeekHigh,
+                fiftyTwoWeekLow: data.fiftyTwoWeekLow,
+                peRatio: data.peRatio,
+                dividendYield: data.dividendYield,
+                volume: data.volume,
+                averageVolume: data.averageVolume,
+                targetPrice: data.targetPrice,
+                earningsDate: data.earningsDate,
+                beta: data.beta,
+              },
+            });
+            refreshResults[item.symbol] = { success: true, price: data.currentPrice };
+          } else {
+            refreshResults[item.symbol] = { success: false, error: getLastError() };
+          }
+        } catch (error) {
+          refreshResults[item.symbol] = {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown'
+          };
+        }
+      }
+      results.batchRefresh = refreshResults;
     }
 
     return NextResponse.json(results);
