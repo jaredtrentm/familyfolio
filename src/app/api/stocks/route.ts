@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
 import Anthropic from '@anthropic-ai/sdk';
+
+const yahooFinance = new YahooFinance();
 
 // Cache duration in minutes
 const CACHE_DURATION = 15;
