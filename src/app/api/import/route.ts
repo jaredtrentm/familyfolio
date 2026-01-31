@@ -133,16 +133,10 @@ function getImageMimeType(fileType: string): 'image/jpeg' | 'image/png' | 'image
 }
 
 // Extract text content from PDF
-async function extractPdfText(buffer: Buffer): Promise<string> {
-  try {
-    // Dynamic import to avoid bundling issues
-    const pdfParse = (await import('pdf-parse')).default;
-    const data = await pdfParse(buffer);
-    return data.text;
-  } catch (error) {
-    console.error('PDF parsing error:', error);
-    return '';
-  }
+async function extractPdfText(_buffer: Buffer): Promise<string> {
+  // PDF parsing is not available - requires pdf-parse package to be installed
+  console.warn('PDF parsing not available - pdf-parse package not installed');
+  return '';
 }
 
 async function parseWithAI(content: string, fileType: string): Promise<ParsedTransaction[]> {
