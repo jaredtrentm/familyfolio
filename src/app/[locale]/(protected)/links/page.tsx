@@ -60,6 +60,20 @@ export default function LinksPage() {
     fetchLinks();
   }, []);
 
+  // Refresh when page becomes visible (user navigates back to this tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchLinks();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   const fetchLinks = async () => {
     try {
       const response = await fetch('/api/links');

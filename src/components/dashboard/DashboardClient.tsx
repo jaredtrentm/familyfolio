@@ -130,6 +130,22 @@ export function DashboardClient({
     return () => clearInterval(intervalId);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Refresh when page becomes visible (user navigates back to this tab)
+  useEffect(() => {
+    if (initialHoldings.length === 0) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshStockData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refreshStockData]);
+
   // Recalculate holdings with current prices
   const holdings = useMemo(() => {
     return initialHoldings.map((h) => {

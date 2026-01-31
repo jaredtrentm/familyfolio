@@ -153,8 +153,11 @@
     "dateRange": "日期范围",
     "includeOptions": "包含内容",
     "exportPdf": "导出PDF",
+    "exportPdfDesc": "生成包含投资组合数据的PDF文档",
     "exportExcel": "导出Excel",
+    "exportExcelDesc": "导出数据为Excel电子表格格式",
     "exportZip": "导出全部 (ZIP)",
+    "exportZipDesc": "下载压缩ZIP档案中的所有数据",
     "options": {
       "transactions": "交易记录",
       "holdings": "持仓",

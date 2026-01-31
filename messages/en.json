@@ -153,8 +153,11 @@
     "dateRange": "Date Range",
     "includeOptions": "Include",
     "exportPdf": "Export PDF",
+    "exportPdfDesc": "Generate a PDF document with your portfolio data",
     "exportExcel": "Export Excel",
+    "exportExcelDesc": "Export data to Excel spreadsheet format",
     "exportZip": "Export All (ZIP)",
+    "exportZipDesc": "Download all data in a compressed ZIP archive",
     "options": {
       "transactions": "Transactions",
       "holdings": "Holdings",

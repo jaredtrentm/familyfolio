@@ -1,6 +1,81 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
+import yahooFinance from 'yahoo-finance2';
+
+// Fetch and cache stock data for a symbol
+async function fetchAndCacheStockData(symbol: string) {
+  const normalizedSymbol = symbol.toUpperCase().trim();
+
+  try {
+    console.log(`[Watchlist API] Fetching stock data for ${normalizedSymbol}...`);
+
+    // Fetch from Yahoo Finance
+    const quote = await yahooFinance.quote(normalizedSymbol);
+
+    if (quote && typeof quote === 'object') {
+      const q = quote as {
+        shortName?: string;
+        longName?: string;
+        regularMarketPrice?: number;
+        regularMarketChange?: number;
+        regularMarketChangePercent?: number;
+        regularMarketPreviousClose?: number;
+        marketCap?: number;
+      };
+
+      // Try to get sector info
+      let sector: string | null = null;
+      let industry: string | null = null;
+
+      try {
+        const summary = await yahooFinance.quoteSummary(normalizedSymbol, {
+          modules: ['assetProfile'],
+        });
+        const summaryData = summary as { assetProfile?: { sector?: string; industry?: string } } | null;
+        if (summaryData?.assetProfile) {
+          sector = summaryData.assetProfile.sector || null;
+          industry = summaryData.assetProfile.industry || null;
+        }
+      } catch (profileError) {
+        console.log(`[Watchlist API] Could not fetch profile for ${normalizedSymbol}:`, profileError instanceof Error ? profileError.message : 'Unknown');
+      }
+
+      // Upsert to cache
+      const cached = await prisma.stockCache.upsert({
+        where: { symbol: normalizedSymbol },
+        update: {
+          name: q.shortName || q.longName || normalizedSymbol,
+          currentPrice: q.regularMarketPrice || 0,
+          dayChange: q.regularMarketChange || 0,
+          dayChangePercent: q.regularMarketChangePercent || 0,
+          previousClose: q.regularMarketPreviousClose || 0,
+          marketCap: q.marketCap || null,
+          sector,
+          industry,
+        },
+        create: {
+          symbol: normalizedSymbol,
+          name: q.shortName || q.longName || normalizedSymbol,
+          currentPrice: q.regularMarketPrice || 0,
+          dayChange: q.regularMarketChange || 0,
+          dayChangePercent: q.regularMarketChangePercent || 0,
+          previousClose: q.regularMarketPreviousClose || 0,
+          marketCap: q.marketCap || null,
+          sector,
+          industry,
+        },
+      });
+
+      console.log(`[Watchlist API] Cached ${normalizedSymbol}: price=$${cached.currentPrice}, sector=${cached.sector}`);
+      return cached;
+    }
+  } catch (error) {
+    console.error(`[Watchlist API] Failed to fetch stock data for ${normalizedSymbol}:`, error instanceof Error ? error.message : 'Unknown');
+  }
+
+  return null;
+}
 
 // Get watchlist items
 export async function GET() {
@@ -15,9 +90,13 @@ export async function GET() {
       orderBy: { addedAt: 'desc' },
     });
 
+    if (watchlist.length === 0) {
+      return NextResponse.json({ watchlist: [] });
+    }
+
     // Get current prices for the symbols
     const symbols = watchlist.map(w => w.symbol);
-    const stockData = await prisma.stockCache.findMany({
+    let stockData = await prisma.stockCache.findMany({
       where: { symbol: { in: symbols } },
       select: {
         symbol: true,
@@ -26,8 +105,42 @@ export async function GET() {
         dayChange: true,
         dayChangePercent: true,
         sector: true,
+        updatedAt: true,
       },
     });
+
+    // Find symbols that are missing from cache or have stale data
+    const cacheThreshold = new Date(Date.now() - 15 * 60 * 1000);
+    const cachedSymbols = new Set(stockData.map(s => s.symbol));
+    const staleSymbols = stockData
+      .filter(s => s.updatedAt < cacheThreshold)
+      .map(s => s.symbol);
+    const missingSymbols = symbols.filter(s => !cachedSymbols.has(s));
+    const symbolsToFetch = [...new Set([...missingSymbols, ...staleSymbols])];
+
+    // Fetch fresh data for missing/stale symbols (limit to avoid timeout)
+    if (symbolsToFetch.length > 0) {
+      console.log(`[Watchlist API] Fetching fresh data for ${symbolsToFetch.length} symbols:`, symbolsToFetch);
+
+      // Fetch in parallel (but limit to prevent rate limiting)
+      const fetchPromises = symbolsToFetch.slice(0, 5).map(symbol => fetchAndCacheStockData(symbol));
+      await Promise.all(fetchPromises);
+
+      // Re-fetch from cache after updates
+      stockData = await prisma.stockCache.findMany({
+        where: { symbol: { in: symbols } },
+        select: {
+          symbol: true,
+          name: true,
+          currentPrice: true,
+          dayChange: true,
+          dayChangePercent: true,
+          sector: true,
+          updatedAt: true,
+        },
+      });
+    }
+
     const stockMap = new Map(stockData.map(s => [s.symbol, s]));
 
     return NextResponse.json({
@@ -92,10 +205,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Get stock info
-    const stockInfo = await prisma.stockCache.findUnique({
+    // Fetch and cache stock info (this will get fresh data from Yahoo Finance)
+    let stockInfo = await prisma.stockCache.findUnique({
       where: { symbol: normalizedSymbol },
     });
+
+    // If not in cache or cache is stale (older than 15 minutes), fetch fresh data
+    const cacheThreshold = new Date(Date.now() - 15 * 60 * 1000);
+    if (!stockInfo || stockInfo.updatedAt < cacheThreshold) {
+      const freshData = await fetchAndCacheStockData(normalizedSymbol);
+      if (freshData) {
+        stockInfo = freshData;
+      }
+    }
 
     return NextResponse.json({
       item: {
@@ -105,6 +227,7 @@ export async function POST(request: NextRequest) {
         currentPrice: stockInfo?.currentPrice || null,
         dayChange: stockInfo?.dayChange || null,
         dayChangePercent: stockInfo?.dayChangePercent || null,
+        sector: stockInfo?.sector || null,
       },
     });
   } catch (error) {

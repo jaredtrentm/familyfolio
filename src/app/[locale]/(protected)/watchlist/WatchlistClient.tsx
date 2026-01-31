@@ -60,8 +60,23 @@ export function WatchlistClient({ locale }: WatchlistClientProps) {
     }
   }, []);
 
+  // Fetch on mount
   useEffect(() => {
     fetchWatchlist();
+  }, [fetchWatchlist]);
+
+  // Refresh when page becomes visible (user navigates back to this tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchWatchlist();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [fetchWatchlist]);
 
   const handleAdd = async () => {

@@ -1,6 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
+import yahooFinance from 'yahoo-finance2';
+
+// Fetch and cache stock data for a symbol
+async function fetchAndCacheStockData(symbol: string) {
+  const normalizedSymbol = symbol.toUpperCase().trim();
+
+  try {
+    const quote = await yahooFinance.quote(normalizedSymbol);
+
+    if (quote && typeof quote === 'object') {
+      const q = quote as {
+        shortName?: string;
+        longName?: string;
+        regularMarketPrice?: number;
+        regularMarketChange?: number;
+        regularMarketChangePercent?: number;
+        regularMarketPreviousClose?: number;
+        marketCap?: number;
+      };
+
+      let sector: string | null = null;
+      let industry: string | null = null;
+
+      try {
+        const summary = await yahooFinance.quoteSummary(normalizedSymbol, {
+          modules: ['assetProfile'],
+        });
+        const summaryData = summary as { assetProfile?: { sector?: string; industry?: string } } | null;
+        if (summaryData?.assetProfile) {
+          sector = summaryData.assetProfile.sector || null;
+          industry = summaryData.assetProfile.industry || null;
+        }
+      } catch {
+        // Ignore profile errors
+      }
+
+      const cached = await prisma.stockCache.upsert({
+        where: { symbol: normalizedSymbol },
+        update: {
+          name: q.shortName || q.longName || normalizedSymbol,
+          currentPrice: q.regularMarketPrice || 0,
+          dayChange: q.regularMarketChange || 0,
+          dayChangePercent: q.regularMarketChangePercent || 0,
+          previousClose: q.regularMarketPreviousClose || 0,
+          marketCap: q.marketCap || null,
+          sector,
+          industry,
+        },
+        create: {
+          symbol: normalizedSymbol,
+          name: q.shortName || q.longName || normalizedSymbol,
+          currentPrice: q.regularMarketPrice || 0,
+          dayChange: q.regularMarketChange || 0,
+          dayChangePercent: q.regularMarketChangePercent || 0,
+          previousClose: q.regularMarketPreviousClose || 0,
+          marketCap: q.marketCap || null,
+          sector,
+          industry,
+        },
+      });
+
+      return cached;
+    }
+  } catch (error) {
+    console.error(`[Alerts API] Failed to fetch stock data for ${normalizedSymbol}:`, error instanceof Error ? error.message : 'Unknown');
+  }
+
+  return null;
+}
 
 // Get all price alerts for the user
 export async function GET() {
@@ -18,12 +87,37 @@ export async function GET() {
       ],
     });
 
+    if (alerts.length === 0) {
+      return NextResponse.json({ alerts: [] });
+    }
+
     // Get current prices for the symbols
     const symbols: string[] = [...new Set(alerts.map((a: { symbol: string }) => a.symbol))];
-    const stockData = await prisma.stockCache.findMany({
+    let stockData = await prisma.stockCache.findMany({
       where: { symbol: { in: symbols } },
-      select: { symbol: true, currentPrice: true, name: true },
+      select: { symbol: true, currentPrice: true, name: true, updatedAt: true },
     });
+
+    // Find symbols that need fresh data (missing or stale)
+    const cacheThreshold = new Date(Date.now() - 15 * 60 * 1000);
+    const cachedSymbols = new Set(stockData.map(s => s.symbol));
+    const staleSymbols = stockData.filter(s => s.updatedAt < cacheThreshold).map(s => s.symbol);
+    const missingSymbols = symbols.filter(s => !cachedSymbols.has(s));
+    const symbolsToFetch = [...new Set([...missingSymbols, ...staleSymbols])];
+
+    // Fetch fresh data for missing/stale symbols
+    if (symbolsToFetch.length > 0) {
+      console.log(`[Alerts API] Fetching fresh data for ${symbolsToFetch.length} symbols`);
+      const fetchPromises = symbolsToFetch.slice(0, 5).map(symbol => fetchAndCacheStockData(symbol));
+      await Promise.all(fetchPromises);
+
+      // Re-fetch from cache
+      stockData = await prisma.stockCache.findMany({
+        where: { symbol: { in: symbols } },
+        select: { symbol: true, currentPrice: true, name: true, updatedAt: true },
+      });
+    }
+
     const priceMap = new Map(stockData.map((s: { symbol: string; currentPrice: number | null; name: string | null }) => [s.symbol, s]));
 
     return NextResponse.json({
