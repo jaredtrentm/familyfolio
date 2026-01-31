@@ -18,7 +18,7 @@ interface AccountsManagerProps {
 }
 
 export function AccountsManager({ locale, onTotalCashChange }: AccountsManagerProps) {
-  const t = useTranslations('dashboard');
+  const t = useTranslations('accounts');
   const localeCode = locale === 'zh' ? 'zh-CN' : 'en-US';
 
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -98,7 +98,7 @@ export function AccountsManager({ locale, onTotalCashChange }: AccountsManagerPr
   };
 
   const handleDeleteAccount = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this account?')) return;
+    if (!confirm(t('deleteConfirm'))) return;
 
     try {
       const response = await fetch(`/api/accounts/${id}`, {
@@ -121,7 +121,7 @@ export function AccountsManager({ locale, onTotalCashChange }: AccountsManagerPr
         <div className="flex items-center gap-2">
           <Wallet className="w-5 h-5 text-gray-500" />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Accounts & Cash
+            {t('title')}
           </h3>
         </div>
         <button
@@ -140,7 +140,7 @@ export function AccountsManager({ locale, onTotalCashChange }: AccountsManagerPr
               type="text"
               value={newAccountName}
               onChange={(e) => setNewAccountName(e.target.value)}
-              placeholder="Account name (e.g., Robinhood)"
+              placeholder={t('accountNamePlaceholder')}
               className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
@@ -149,7 +149,7 @@ export function AccountsManager({ locale, onTotalCashChange }: AccountsManagerPr
               type="number"
               value={newAccountCash}
               onChange={(e) => setNewAccountCash(e.target.value)}
-              placeholder="Cash balance"
+              placeholder={t('cashBalancePlaceholder')}
               className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             <button
@@ -170,10 +170,10 @@ export function AccountsManager({ locale, onTotalCashChange }: AccountsManagerPr
 
       {/* Accounts List */}
       {isLoading ? (
-        <div className="text-center py-4 text-gray-500">Loading...</div>
+        <div className="text-center py-4 text-gray-500">{t('loading')}</div>
       ) : accounts.length === 0 ? (
         <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
-          No accounts added. Click + to add your brokerage accounts.
+          {t('noAccounts')}
         </div>
       ) : (
         <div className="space-y-2">
@@ -234,7 +234,7 @@ export function AccountsManager({ locale, onTotalCashChange }: AccountsManagerPr
           {/* Total Cash */}
           <div className="flex items-center justify-between pt-3 mt-2 border-t border-gray-200 dark:border-gray-700">
             <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Total Cash
+              {t('totalCash')}
             </span>
             <span className="text-sm font-bold text-gray-900 dark:text-white">
               {formatCurrency(totalCash, 'USD', localeCode)}

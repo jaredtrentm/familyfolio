@@ -233,6 +233,37 @@
     "years": "年",
     "months": "个月"
   },
+  "share": {
+    "title": "共享待认领池",
+    "description": "与其他用户连接，共享待认领交易的访问权限。",
+    "inviteByEmail": "通过邮箱邀请",
+    "enterEmail": "输入邮箱地址",
+    "send": "发送",
+    "pendingRequests": "待处理请求",
+    "connectedUsers": "已连接用户",
+    "noConnections": "暂无连接。发送请求开始共享。",
+    "sentRequests": "已发送请求（待处理）",
+    "awaitingResponse": "等待回复",
+    "approve": "批准",
+    "deny": "拒绝",
+    "remove": "移除",
+    "cancel": "取消"
+  },
+  "accounts": {
+    "title": "账户和现金",
+    "accountNamePlaceholder": "账户名称（如：Robinhood）",
+    "cashBalancePlaceholder": "现金余额",
+    "noAccounts": "暂无账户。点击 + 添加您的券商账户。",
+    "totalCash": "现金总计",
+    "deleteConfirm": "确定要删除此账户吗？",
+    "loading": "加载中..."
+  },
+  "footer": {
+    "demoApp": "演示应用",
+    "demoDisclaimer": "这是一个仅供测试和演示的测试版本。不适用于生产环境。数据可能会被重置。非理财建议。",
+    "disclaimer": "仅供参考，非理财建议。",
+    "alsoByJared": "Jared 的其他作品"
+  },
   "links": {
     "title": "快捷链接",
     "subtitle": "保存您的金融账户和研究工具链接",

@@ -182,6 +182,37 @@
     "changePassword": "Change Password",
     "deleteAccount": "Delete Account"
   },
+  "share": {
+    "title": "Shared Unclaimed Pool",
+    "description": "Connect with other users to share access to unclaimed transactions.",
+    "inviteByEmail": "Invite by Email",
+    "enterEmail": "Enter email address",
+    "send": "Send",
+    "pendingRequests": "Pending Requests",
+    "connectedUsers": "Connected Users",
+    "noConnections": "No connections yet. Send a request to start sharing.",
+    "sentRequests": "Sent Requests (Pending)",
+    "awaitingResponse": "Awaiting response",
+    "approve": "Approve",
+    "deny": "Deny",
+    "remove": "Remove",
+    "cancel": "Cancel"
+  },
+  "accounts": {
+    "title": "Accounts & Cash",
+    "accountNamePlaceholder": "Account name (e.g., Robinhood)",
+    "cashBalancePlaceholder": "Cash balance",
+    "noAccounts": "No accounts added. Click + to add your brokerage accounts.",
+    "totalCash": "Total Cash",
+    "deleteConfirm": "Are you sure you want to delete this account?",
+    "loading": "Loading..."
+  },
+  "footer": {
+    "demoApp": "Demo App",
+    "demoDisclaimer": "This is a beta version for testing and demonstration purposes only. Not intended for production use. Data may be reset. Not financial advice.",
+    "disclaimer": "For informational purposes only. Not financial advice.",
+    "alsoByJared": "Also by Jared"
+  },
   "links": {
     "title": "Quick Links",
     "subtitle": "Save links to your financial accounts and research tools",

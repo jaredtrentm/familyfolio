@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Users, UserPlus, Check, X, Trash2, Loader2, Mail } from 'lucide-react';
 
 interface User {
@@ -30,6 +31,7 @@ interface ShareData {
 }
 
 export function ShareManager() {
+  const t = useTranslations('share');
   const [data, setData] = useState<ShareData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [email, setEmail] = useState('');
@@ -136,17 +138,17 @@ export function ShareManager() {
       <div className="flex items-center gap-3 mb-4">
         <Users className="w-5 h-5 text-gray-500" />
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Shared Unclaimed Pool
+          {t('title')}
         </h2>
       </div>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Connect with other users to share access to unclaimed transactions.
+        {t('description')}
       </p>
 
       {/* Send Request Form */}
       <form onSubmit={handleSendRequest} className="mb-6">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Invite by Email
+          {t('inviteByEmail')}
         </label>
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -155,7 +157,7 @@ export function ShareManager() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter email address"
+              placeholder={t('enterEmail')}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -169,7 +171,7 @@ export function ShareManager() {
             ) : (
               <UserPlus className="w-4 h-4" />
             )}
-            Send
+            {t('send')}
           </button>
         </div>
         {message && (
@@ -183,7 +185,7 @@ export function ShareManager() {
       {data?.receivedRequests && data.receivedRequests.length > 0 && (
         <div className="mb-6">
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            Pending Requests
+            {t('pendingRequests')}
           </h3>
           <div className="space-y-2">
             {data.receivedRequests.map((request) => (
@@ -210,7 +212,7 @@ export function ShareManager() {
                     ) : (
                       <Check className="w-4 h-4" />
                     )}
-                    Approve
+                    {t('approve')}
                   </button>
                   <button
                     onClick={() => handleRespond(request.id, 'denied')}
@@ -218,7 +220,7 @@ export function ShareManager() {
                     className="flex items-center gap-1 px-3 py-1.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 disabled:opacity-50 transition-colors"
                   >
                     <X className="w-4 h-4" />
-                    Deny
+                    {t('deny')}
                   </button>
                 </div>
               </div>
@@ -230,7 +232,7 @@ export function ShareManager() {
       {/* Active Connections */}
       <div className="mb-6">
         <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-          Connected Users
+          {t('connectedUsers')}
         </h3>
         {data?.activeConnections && data.activeConnections.length > 0 ? (
           <div className="space-y-2">
@@ -262,14 +264,14 @@ export function ShareManager() {
                   ) : (
                     <Trash2 className="w-4 h-4" />
                   )}
-                  Remove
+                  {t('remove')}
                 </button>
               </div>
             ))}
           </div>
         ) : (
           <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            No connections yet. Send a request to start sharing.
+            {t('noConnections')}
           </p>
         )}
       </div>
@@ -278,7 +280,7 @@ export function ShareManager() {
       {data?.sentRequests && data.sentRequests.filter(r => r.status === 'pending').length > 0 && (
         <div>
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            Sent Requests (Pending)
+            {t('sentRequests')}
           </h3>
           <div className="space-y-2">
             {data.sentRequests
@@ -293,7 +295,7 @@ export function ShareManager() {
                       {request.target?.name}
                     </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {request.target?.email} - Awaiting response
+                      {request.target?.email} - {t('awaitingResponse')}
                     </p>
                   </div>
                   <button
@@ -306,7 +308,7 @@ export function ShareManager() {
                     ) : (
                       <X className="w-4 h-4" />
                     )}
-                    Cancel
+                    {t('cancel')}
                   </button>
                 </div>
               ))}

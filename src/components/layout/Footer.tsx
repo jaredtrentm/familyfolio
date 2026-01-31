@@ -1,6 +1,7 @@
 "use client";
 
-import { ExternalLink, AlertTriangle } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { ExternalLink } from "lucide-react";
 
 const OTHER_APPS = [
   {
@@ -21,27 +22,18 @@ const OTHER_APPS = [
 ];
 
 export function Footer() {
+  const t = useTranslations("footer");
+
   return (
     <footer className="border-t border-border bg-card/50 mt-auto">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {/* Demo Disclaimer Banner */}
-        <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-            <p className="text-xs text-amber-800 dark:text-amber-200">
-              <span className="font-semibold">Demo App:</span> This is a beta version for testing and demonstration purposes only.
-              Not intended for production use. Data may be reset. Not financial advice.
-            </p>
-          </div>
-        </div>
-
         <p className="text-center text-xs text-muted-foreground mb-4">
-          For informational purposes only. Not financial advice. &copy; {new Date().getFullYear()} FamilyFolio
+          {t('disclaimer')} &copy; {new Date().getFullYear()} FamilyFolio
         </p>
 
         <div className="border-t border-border pt-4">
           <p className="text-center text-xs text-muted-foreground mb-2">
-            Also by Jared
+            {t('alsoByJared')}
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             {OTHER_APPS.map((app) => (
