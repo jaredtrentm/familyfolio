@@ -2,7 +2,9 @@
 
 import { useTranslations } from 'next-intl';
 import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
-import { formatCurrency, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
+import { motion } from 'framer-motion';
 
 interface PortfolioSummaryProps {
   totalValue: number;
@@ -22,13 +24,13 @@ export function PortfolioSummary({
   const cards = [
     {
       title: t('totalValue'),
-      value: formatCurrency(totalValue, 'USD', locale === 'zh' ? 'zh-CN' : 'en-US'),
+      value: totalValue,
       icon: DollarSign,
       color: 'blue',
     },
     {
       title: t('totalGain'),
-      value: formatCurrency(Math.abs(totalGainLoss), 'USD', locale === 'zh' ? 'zh-CN' : 'en-US'),
+      value: Math.abs(totalGainLoss),
       change: totalGainLossPercent,
       icon: totalGainLoss >= 0 ? TrendingUp : TrendingDown,
       color: totalGainLoss >= 0 ? 'green' : 'red',
@@ -47,9 +49,12 @@ export function PortfolioSummary({
         };
 
         return (
-          <div
+          <motion.div
             key={index}
-            className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: index * 0.1 }}
+            className="glass-card rounded-xl p-6 hover-lift"
           >
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
@@ -62,10 +67,18 @@ export function PortfolioSummary({
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-bold text-gray-900 dark:text-white">
                 {'isPositive' in card && !card.isPositive && '-'}
-                {card.value}
+                <AnimatedNumber
+                  value={card.value}
+                  prefix="$"
+                  decimals={2}
+                  locale={locale}
+                />
               </span>
               {card.change !== undefined && (
-                <span
+                <motion.span
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: 0.5 }}
                   className={cn(
                     'text-sm font-medium',
                     card.isPositive
@@ -74,10 +87,10 @@ export function PortfolioSummary({
                   )}
                 >
                   {card.isPositive ? '+' : ''}{card.change.toFixed(2)}%
-                </span>
+                </motion.span>
               )}
             </div>
-          </div>
+          </motion.div>
         );
       })}
     </div>

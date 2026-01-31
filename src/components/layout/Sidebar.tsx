@@ -14,7 +14,11 @@ import {
   LogOut,
   TrendingUp,
   Link2,
+  Star,
+  Bell,
+  Scale,
 } from 'lucide-react';
+import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -33,6 +37,9 @@ export function Sidebar({ locale }: SidebarProps) {
     { href: `/${locale}/gains`, label: t('gains'), icon: TrendingUp },
     { href: `/${locale}/transactions`, label: t('transactions'), icon: Receipt },
     { href: `/${locale}/unclaimed`, label: t('unclaimed'), icon: Inbox },
+    { href: `/${locale}/watchlist`, label: t('watchlist') || 'Watchlist', icon: Star },
+    { href: `/${locale}/alerts`, label: t('alerts') || 'Alerts', icon: Bell },
+    { href: `/${locale}/rebalance`, label: t('rebalance') || 'Rebalance', icon: Scale },
     { href: `/${locale}/import`, label: t('import'), icon: Upload },
     { href: `/${locale}/links`, label: t('links'), icon: Link2 },
     { href: `/${locale}/chat`, label: t('chat'), icon: MessageSquare },
@@ -51,6 +58,11 @@ export function Sidebar({ locale }: SidebarProps) {
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">
           {tCommon('appName')}
         </h1>
+      </div>
+
+      {/* Search */}
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <GlobalSearch locale={locale} />
       </div>
 
       {/* Navigation */}

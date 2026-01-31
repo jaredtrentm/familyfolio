@@ -278,8 +278,7 @@ export default function LinksPage() {
                     link={link}
                     onDelete={handleDelete}
                     deletingId={deletingId}
-                    getCategoryIcon={getCategoryIcon}
-                    t={t}
+                    icon={getCategoryIcon(link.category)}
                   />
                 ))}
               </div>
@@ -311,8 +310,7 @@ export default function LinksPage() {
                       link={link}
                       onDelete={handleDelete}
                       deletingId={deletingId}
-                      getCategoryIcon={getCategoryIcon}
-                      t={t}
+                      icon={getCategoryIcon(link.category)}
                     />
                   ))}
                 </div>
@@ -329,22 +327,18 @@ function LinkRow({
   link,
   onDelete,
   deletingId,
-  getCategoryIcon,
-  t,
+  icon: IconComponent,
 }: {
   link: Link;
   onDelete: (id: string) => void;
   deletingId: string | null;
-  getCategoryIcon: (category: string) => React.ComponentType<{ className?: string }>;
-  t: ReturnType<typeof useTranslations>;
+  icon: React.ComponentType<{ className?: string }>;
 }) {
-  const Icon = getCategoryIcon(link.category);
-
   return (
     <div className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
       <div className="flex items-center gap-4 min-w-0 flex-1">
         <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-          <Icon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <IconComponent className="w-5 h-5 text-blue-600 dark:text-blue-400" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-medium text-gray-900 dark:text-white truncate">

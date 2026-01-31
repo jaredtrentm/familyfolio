@@ -12,13 +12,16 @@ export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  // Initialize dismissed state by checking sessionStorage (only runs once)
+  const [dismissed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem("pwa-prompt-dismissed") === "true";
+  });
+  const [localDismissed, setLocalDismissed] = useState(false);
 
   useEffect(() => {
-    // Check if already dismissed this session
-    const wasDismissed = sessionStorage.getItem("pwa-prompt-dismissed");
-    if (wasDismissed) {
-      setDismissed(true);
+    // Skip if already dismissed
+    if (dismissed || localDismissed) {
       return;
     }
 
@@ -33,7 +36,7 @@ export function InstallPrompt() {
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
     };
-  }, []);
+  }, [dismissed, localDismissed]);
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
@@ -51,11 +54,11 @@ export function InstallPrompt() {
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    setDismissed(true);
+    setLocalDismissed(true);
     sessionStorage.setItem("pwa-prompt-dismissed", "true");
   };
 
-  if (!showPrompt || dismissed) return null;
+  if (!showPrompt || dismissed || localDismissed) return null;
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:max-w-sm">

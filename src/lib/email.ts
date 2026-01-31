@@ -1,6 +1,17 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialization to avoid errors during build when no API key is set
+let resend: Resend | null = null;
+
+function getResend(): Resend | null {
+  if (!process.env.RESEND_API_KEY) {
+    return null;
+  }
+  if (!resend) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resend;
+}
 
 // Use Resend's default test sender - no domain verification required
 // To use your own domain, verify it in Resend dashboard and update this line
@@ -68,14 +79,16 @@ export async function sendPasswordResetEmail(
     `;
 
   try {
+    const resendClient = getResend();
+
     // Only skip if no API key is set
-    if (!process.env.RESEND_API_KEY) {
+    if (!resendClient) {
       console.log('[Email Service] No RESEND_API_KEY set. Would send password reset to:', email);
       console.log('[Email Service] Reset URL:', resetUrl);
       return { success: true };
     }
 
-    const { error } = await resend.emails.send({
+    const { error } = await resendClient.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject,

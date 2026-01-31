@@ -36,6 +36,15 @@ model User {
   // Share requests
   sentShareRequests     ShareRequest[] @relation("SentShareRequests")
   receivedShareRequests ShareRequest[] @relation("ReceivedShareRequests")
+
+  // New feature relations
+  preferences        UserPreferences?
+  priceAlerts        PriceAlert[]
+  watchlist          WatchlistItem[]
+  portfolioSnapshots PortfolioSnapshot[]
+  rebalanceTargets   RebalanceTarget[]
+  notifications      Notification[]
+  transactionHistory TransactionHistory[]
 }
 
 model Account {
@@ -93,6 +102,11 @@ model Transaction {
   fees         Float    @default(0)
   currency     String   @default("USD")
 
+  // Notes and wash sale tracking
+  notes          String?
+  washSaleFlag   Boolean @default(false)
+  washSaleAmount Float?
+
   // Duplicate detection
   isDuplicateFlag Boolean  @default(false)
   duplicateOfId   String?  // ID of the transaction this is a duplicate of
@@ -106,6 +120,8 @@ model Transaction {
   dataUpload   DataUpload? @relation(fields: [dataUploadId], references: [id])
   claimedBy    User?       @relation(fields: [claimedById], references: [id])
   account      Account?    @relation(fields: [accountId], references: [id])
+  taxLots      TaxLot[]
+  history      TransactionHistory[]
 
   @@index([claimedById])
   @@index([symbol])
@@ -247,4 +263,126 @@ model PlaidAccount {
 
   @@index([connectionId])
   @@index([plaidAccountId])
+}
+
+// Tax lot tracking for cost basis calculations
+model TaxLot {
+  id            String   @id @default(cuid())
+  transactionId String
+  symbol        String
+  quantity      Float
+  remainingQty  Float
+  costBasis     Float
+  acquiredDate  DateTime
+  createdAt     DateTime @default(now())
+
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([symbol])
+  @@index([transactionId])
+}
+
+// Transaction history for undo/audit
+model TransactionHistory {
+  id            String   @id @default(cuid())
+  transactionId String
+  userId        String
+  changeType    String   // CREATE, UPDATE, DELETE, CLAIM, UNCLAIM
+  previousData  Json?
+  newData       Json?
+  createdAt     DateTime @default(now())
+
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  user          User @relation(fields: [userId], references: [id])
+
+  @@index([transactionId])
+  @@index([userId])
+}
+
+// User preferences including widget layout and cost basis method
+model UserPreferences {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  widgetLayout    Json?
+  costBasisMethod String   @default("FIFO")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User @relation(fields: [userId], references: [id])
+}
+
+// Price alerts for stock notifications
+model PriceAlert {
+  id          String    @id @default(cuid())
+  userId      String
+  symbol      String
+  targetPrice Float
+  condition   String    // ABOVE, BELOW
+  isActive    Boolean   @default(true)
+  triggeredAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  user        User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([symbol, isActive])
+}
+
+// Watchlist items for tracking stocks
+model WatchlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  symbol    String
+  notes     String?
+  addedAt   DateTime @default(now())
+
+  user      User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, symbol])
+}
+
+// Portfolio snapshots for historical tracking
+model PortfolioSnapshot {
+  id           String   @id @default(cuid())
+  userId       String
+  snapshotDate DateTime
+  totalValue   Float
+  costBasis    Float
+  holdings     Json
+  createdAt    DateTime @default(now())
+
+  user         User @relation(fields: [userId], references: [id])
+
+  @@index([userId, snapshotDate])
+}
+
+// Rebalancing targets for portfolio allocation
+model RebalanceTarget {
+  id            String   @id @default(cuid())
+  userId        String
+  targetType    String   // SYMBOL, SECTOR, ASSET_TYPE
+  identifier    String
+  targetPercent Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, targetType, identifier])
+}
+
+// In-app notifications
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // PRICE_ALERT, WEEKLY_REPORT, SYSTEM
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  actionUrl String?
+  createdAt DateTime @default(now())
+
+  user      User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
 }

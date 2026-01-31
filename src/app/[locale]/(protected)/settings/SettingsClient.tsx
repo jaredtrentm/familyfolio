@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { Globe, Key, Lock, Trash2 } from 'lucide-react';
 import { ShareManager } from '@/components/settings/ShareManager';
+import { CostBasisSettings } from '@/components/settings/CostBasisSettings';
 
 interface SettingsClientProps {
   locale: string;
@@ -85,6 +86,9 @@ export function SettingsClient({ locale, user }: SettingsClientProps) {
             </button>
           </div>
         </div>
+
+        {/* Cost Basis Settings */}
+        <CostBasisSettings locale={locale} />
 
         {/* Share Management */}
         <ShareManager />

@@ -9,6 +9,9 @@ import { AssetTypeChart } from '@/components/charts/AssetTypeChart';
 import { PerformanceChart } from '@/components/charts/PerformanceChart';
 import { HoldingsPieChart } from '@/components/charts/HoldingsPieChart';
 import { classifyAssetType, type AssetType } from '@/lib/asset-types';
+import { Skeleton, SkeletonChart, SkeletonTable } from '@/components/ui/Skeleton';
+import { SpinnerRing } from '@/components/ui/ProgressRing';
+import { RefreshCw } from 'lucide-react';
 
 interface Holding {
   symbol: string;
@@ -53,14 +56,21 @@ export function DashboardClient({
   const [totalCash, setTotalCash] = useState(0);
   const [stockPrices, setStockPrices] = useState<Map<string, StockData>>(new Map());
   const [etfHoldings, setEtfHoldings] = useState<EtfHoldingsMap>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleTotalCashChange = useCallback((cash: number) => {
     setTotalCash(cash);
   }, []);
 
   // Fetch latest stock data (prices and sectors) from cache
-  const refreshStockData = useCallback(async () => {
-    if (initialHoldings.length === 0) return;
+  const refreshStockData = useCallback(async (showRefreshing = false) => {
+    if (initialHoldings.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    if (showRefreshing) setIsRefreshing(true);
 
     try {
       // Refresh stock data cache
@@ -93,8 +103,15 @@ export function DashboardClient({
       }
     } catch (error) {
       console.error('[Dashboard] Failed to refresh stock data:', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, [initialHoldings.length]);
+
+  const handleManualRefresh = () => {
+    refreshStockData(true);
+  };
 
   // Auto-refresh stock data on mount and every 5 minutes
   useEffect(() => {
@@ -219,8 +236,63 @@ export function DashboardClient({
     return allocation;
   }, [holdings, totalCash]);
 
+  // Show skeleton loading state
+  if (isLoading && initialHoldings.length > 0) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        {/* Summary skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="glass-card rounded-xl p-6">
+            <Skeleton width="40%" height="1rem" className="mb-4" />
+            <Skeleton width="60%" height="2rem" />
+          </div>
+          <div className="glass-card rounded-xl p-6">
+            <Skeleton width="40%" height="1rem" className="mb-4" />
+            <Skeleton width="60%" height="2rem" />
+          </div>
+        </div>
+
+        {/* Accounts skeleton */}
+        <div className="glass-card rounded-xl p-6">
+          <Skeleton width="30%" height="1.5rem" className="mb-4" />
+          <div className="space-y-2">
+            <Skeleton height="2.5rem" />
+            <Skeleton height="2.5rem" />
+          </div>
+        </div>
+
+        {/* Charts skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SkeletonChart type="pie" />
+          <SkeletonChart type="bar" />
+        </div>
+
+        {/* Table skeleton */}
+        <SkeletonTable rows={5} columns={6} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Refresh button */}
+      {holdings.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {isRefreshing ? (
+              <SpinnerRing size={16} strokeWidth={2} />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <PortfolioSummary
         totalValue={totalValue}
@@ -248,7 +320,7 @@ export function DashboardClient({
           <HoldingsTable holdings={holdings} locale={locale} />
         </>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center border border-gray-200 dark:border-gray-700">
+        <div className="glass-card rounded-xl p-8 text-center">
           <p className="text-gray-500 dark:text-gray-400">{noHoldingsMessage}</p>
         </div>
       )}
