@@ -34,12 +34,19 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (event.request.method !== 'GET') return;
 
+  // Only cache http/https requests (skip chrome-extension://, etc.)
+  if (!event.request.url.startsWith('http')) return;
+
   // Skip API requests
   if (event.request.url.includes('/api/')) return;
 
   event.respondWith(
     fetch(event.request)
       .then((response) => {
+        // Only cache successful responses
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
+        }
         // Clone the response before caching
         const responseClone = response.clone();
         caches.open(CACHE_NAME).then((cache) => {
