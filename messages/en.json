@@ -391,6 +391,8 @@
     "title": "News",
     "news": "News",
     "marketNews": "Market News",
+    "holdingsNews": "My Holdings",
+    "watchlistNews": "Watchlist",
     "refresh": "Refresh",
     "tryAgain": "Try again",
     "noNews": "No news available"

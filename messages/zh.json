@@ -340,6 +340,8 @@
     "title": "新闻",
     "news": "新闻",
     "marketNews": "市场新闻",
+    "holdingsNews": "我的持仓",
+    "watchlistNews": "自选股",
     "refresh": "刷新",
     "tryAgain": "重试",
     "noNews": "暂无新闻"

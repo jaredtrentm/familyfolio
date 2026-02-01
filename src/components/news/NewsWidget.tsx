@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Newspaper, ExternalLink, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Newspaper, ExternalLink, RefreshCw, ChevronDown, ChevronUp, Briefcase, Eye, Globe } from 'lucide-react';
 
 interface NewsItem {
   id: number;
@@ -16,27 +16,34 @@ interface NewsItem {
   category: string;
 }
 
+type NewsFilter = 'market' | 'holdings' | 'watchlist';
+
 interface NewsWidgetProps {
   symbol?: string;
   title?: string;
   maxItems?: number;
+  showFilters?: boolean;
 }
 
-export function NewsWidget({ symbol, title, maxItems = 5 }: NewsWidgetProps) {
+export function NewsWidget({ symbol, title, maxItems = 5, showFilters = true }: NewsWidgetProps) {
   const t = useTranslations('news');
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
+  const [filter, setFilter] = useState<NewsFilter>('market');
 
-  const fetchNews = async () => {
+  const fetchNews = async (currentFilter: NewsFilter = filter) => {
     setLoading(true);
     setError(null);
 
     try {
-      const url = symbol
-        ? `/api/news?symbol=${encodeURIComponent(symbol)}`
-        : '/api/news';
+      let url: string;
+      if (symbol) {
+        url = `/api/news?symbol=${encodeURIComponent(symbol)}`;
+      } else {
+        url = `/api/news?filter=${currentFilter}`;
+      }
 
       const response = await fetch(url);
       const data = await response.json();
@@ -46,7 +53,7 @@ export function NewsWidget({ symbol, title, maxItems = 5 }: NewsWidgetProps) {
       } else {
         setNews(data.news.slice(0, maxItems));
       }
-    } catch (err) {
+    } catch {
       setError('Failed to load news');
     } finally {
       setLoading(false);
@@ -54,11 +61,22 @@ export function NewsWidget({ symbol, title, maxItems = 5 }: NewsWidgetProps) {
   };
 
   useEffect(() => {
-    fetchNews();
+    fetchNews(filter);
     // Refresh news every 10 minutes
-    const interval = setInterval(fetchNews, 10 * 60 * 1000);
+    const interval = setInterval(() => fetchNews(filter), 10 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [symbol]);
+  }, [symbol, filter]);
+
+  const handleFilterChange = (newFilter: NewsFilter) => {
+    setFilter(newFilter);
+    fetchNews(newFilter);
+  };
+
+  const filterOptions = [
+    { value: 'market' as const, label: t('marketNews'), icon: Globe },
+    { value: 'holdings' as const, label: t('holdingsNews') || 'My Holdings', icon: Briefcase },
+    { value: 'watchlist' as const, label: t('watchlistNews') || 'Watchlist', icon: Eye },
+  ];
 
   const formatTimeAgo = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -91,7 +109,7 @@ export function NewsWidget({ symbol, title, maxItems = 5 }: NewsWidgetProps) {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              fetchNews();
+              fetchNews(filter);
             }}
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
             title={t('refresh')}
@@ -105,6 +123,31 @@ export function NewsWidget({ symbol, title, maxItems = 5 }: NewsWidgetProps) {
           )}
         </div>
       </div>
+
+      {/* Filter tabs - only show when expanded and not showing single symbol */}
+      {expanded && showFilters && !symbol && (
+        <div className="flex gap-1 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          {filterOptions.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleFilterChange(value);
+              }}
+              className={`
+                flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                ${filter === value
+                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }
+              `}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Content */}
       {expanded && (
@@ -122,7 +165,7 @@ export function NewsWidget({ symbol, title, maxItems = 5 }: NewsWidgetProps) {
             <div className="text-center py-4 text-gray-500 dark:text-gray-400">
               <p>{error}</p>
               <button
-                onClick={fetchNews}
+                onClick={() => fetchNews(filter)}
                 className="mt-2 text-sm text-blue-500 hover:text-blue-600"
               >
                 {t('tryAgain')}
