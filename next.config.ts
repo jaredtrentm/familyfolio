@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   // Disable strict mode for development
   reactStrictMode: true,
 
+  // Standalone output for Railway/Docker deployments
+  output: 'standalone',
+
   // Allow external images if needed
   images: {
     remotePatterns: [
